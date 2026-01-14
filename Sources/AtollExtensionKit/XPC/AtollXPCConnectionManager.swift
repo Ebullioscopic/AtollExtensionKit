@@ -5,10 +5,12 @@
 //  Manages XPC connection to Atoll service.
 //
 
+import AppKit
 import Foundation
 
 final class AtollXPCConnectionManager: NSObject, @unchecked Sendable {
     private static let serviceName = "com.ebullioscopic.Atoll.xpc"
+    private static let atollBundleIdentifier = "com.ebullioscopic.Atoll"
     private var connection: NSXPCConnection?
     private let queue = DispatchQueue(label: "com.atoll.xpc.connection")
     
@@ -21,9 +23,23 @@ final class AtollXPCConnectionManager: NSObject, @unchecked Sendable {
     }
     
     var isAtollInstalled: Bool {
-        // Check if Atoll app exists in Applications
-        let appPath = "/Applications/Atoll.app"
-        return FileManager.default.fileExists(atPath: appPath)
+        if isAtollRunning {
+            return true
+        }
+
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.atollBundleIdentifier) {
+            return FileManager.default.fileExists(atPath: appURL.path)
+        }
+
+        let fallbackPaths = [
+            "/Applications/Atoll.app",
+            NSString(string: NSHomeDirectory()).appendingPathComponent("Applications/Atoll.app")
+        ]
+        return fallbackPaths.contains { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    private var isAtollRunning: Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: Self.atollBundleIdentifier).isEmpty
     }
     
     // MARK: - Connection Management

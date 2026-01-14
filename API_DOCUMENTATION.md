@@ -93,6 +93,15 @@ AtollClient.shared.onAuthorizationChange = { isAuthorized in
 
 Live activities appear in the closed Dynamic Island notch, similar to timer, music, or reminder indicators.
 
+### Step-by-Step Workflow
+
+1. **Authorize** – call `requestAuthorization()` as soon as practical and ask users to approve the Extensions permission inside Atoll if the call returns `false`.
+2. **Assemble a descriptor** – create an `AtollLiveActivityDescriptor` with a persistent `id`, concise title/subtitle, a `leadingIcon` (or explicit `leadingContent` override), trailing content (text/progress/marquee/countdown/animation), and optional `centerTextStyle`, progress indicator, or accent color. Keep payloads lean to pass validation.
+3. **Validate/test** – during development you can run `ExtensionDescriptorValidator.validate(_:)` (part of the SDK) on sample descriptors or unit tests to catch size/length violations before shipping.
+4. **Present** – send the descriptor via `presentLiveActivity(_:)`. Re-use the same `id` for the life of the session.
+5. **Update & dismiss** – call `updateLiveActivity(_:)` whenever the state changes, then `dismissLiveActivity(activityID:)` when the session ends so Atoll frees the slot.
+6. **Monitor callbacks & logs** – subscribe to `onActivityDismiss` to detect user revocations, and enable *Extension diagnostics logging* inside Atoll → Settings → Extensions to see each payload, validation result, and display decision in Console.app.
+
 ### Creating a Live Activity
 
 ```swift
@@ -102,13 +111,15 @@ let activity = AtollLiveActivityDescriptor(
     priority: .normal,
     title: "Workout Timer",
     subtitle: "Chest & Triceps",
-    icon: .symbol(name: "figure.strengthtraining.traditional", color: .orange),
-    trailingContent: .countdown(
-        targetDate: Date().addingTimeInterval(1800),
-        font: .system(weight: .medium, design: .rounded)
-    ),
+    leadingIcon: .symbol(name: "figure.strengthtraining.traditional", color: .orange),
+    trailingContent: .text("Set 2/4"),
     progressIndicator: .ring(color: .orange, lineWidth: 3),
-    accentColor: .orange
+    accentColor: .orange,
+    leadingContent: .countdownText(
+        targetDate: Date().addingTimeInterval(1800),
+        font: .monospacedDigit(size: 13, weight: .semibold)
+    ),
+    centerTextStyle: .inline
 )
 
 try await AtollClient.shared.presentLiveActivity(activity)
@@ -138,29 +149,70 @@ AtollClient.shared.onActivityDismiss = { activityID in
 
 ### Trailing Content Options
 
-**Countdown:**
+**Text label:**
 ```swift
-.countdown(targetDate: Date().addingTimeInterval(3600), font: .system())
+.text("Running", font: .system(weight: .medium))
 ```
 
-**Progress:**
+**Marquee text:**
 ```swift
-.progress(current: 45, total: 100, unit: "%")
+.marquee("Half Marathon Training", font: .system(weight: .semibold), minDuration: 0.5)
 ```
 
-**Text:**
+**Countdown text:**
 ```swift
-.text("Running", color: .green)
+.countdownText(
+    targetDate: Date().addingTimeInterval(3600),
+    font: .monospacedDigit(size: 13, weight: .semibold)
+)
 ```
 
-**Custom:**
+**Icon:**
 ```swift
-.custom(primary: "5.2", secondary: "km", unit: nil)
+.icon(.symbol(name: "timer", color: .green))
+```
+
+**Spectrum visualization:**
+```swift
+.spectrum(color: .accent)
+```
+
+**Lottie animation:**
+```swift
+.animation(data: lottieData, size: .init(width: 60, height: 32))
 ```
 
 **None:**
 ```swift
 .none
+```
+
+> ℹ️ `leadingContent` accepts the same `AtollTrailingContent` cases, letting you move timers, marquee text, or animations to the left wing when needed.
+
+### Leading Segment Overrides
+
+By default Atoll renders the `leadingIcon` you provide. Supplying `leadingContent` swaps the entire left wing for any `AtollTrailingContent`, which is useful for timers that need both a badge and a digital countdown.
+
+```swift
+var descriptor = activity
+descriptor.leadingContent = .countdownText(
+    targetDate: targetDate,
+    font: .monospacedDigit(size: 12, weight: .semibold)
+)
+descriptor.badgeIcon = .symbol(name: "flame", color: .orange)
+```
+
+### Center Text Styles
+
+`AtollCenterTextStyle` controls how the title/subtitle render in the middle column:
+
+- `.inheritUser` (default) mirrors the user's Sneak Peek style preference inside Atoll.
+- `.standard` forces the classic stacked layout (title above subtitle).
+- `.inline` renders title/subtitle on a single line with marquee support, matching Atoll's inline Sneak Peek layout.
+
+```swift
+var inlineDescriptor = activity
+inlineDescriptor.centerTextStyle = .inline
 ```
 
 ### Progress Indicators
@@ -367,6 +419,7 @@ do {
 - Listen for `onActivityDismiss` callbacks
 - Don't immediately re-present dismissed activities
 - Provide in-app settings to disable live activities
+- Leave `centerTextStyle` at `.inheritUser` whenever possible so the view respects the user's Sneak Peek preference; only force `.inline` or `.standard` when your layout requires a specific treatment.
 
 ---
 
@@ -468,8 +521,8 @@ class PomodoroManager {
             priority: .high,
             title: "Focus Time",
             subtitle: "Deep Work Session",
-            icon: .symbol(name: "brain.head.profile", color: .purple),
-            trailingContent: .countdown(
+            leadingIcon: .symbol(name: "brain.head.profile", color: .purple),
+            trailingContent: .countdownText(
                 targetDate: Date().addingTimeInterval(25 * 60),
                 font: .monospacedDigit()(weight: .semibold, design: .rounded)
             ),
@@ -494,11 +547,11 @@ func showDownload(filename: String, progress: Double) async throws {
         priority: .low,
         title: "Downloading",
         subtitle: filename,
-        icon: .symbol(name: "arrow.down.circle.fill", color: .blue),
-        trailingContent: .progress(current: progress, total: 1.0, unit: nil),
+        leadingIcon: .symbol(name: "arrow.down.circle.fill", color: .blue),
+        trailingContent: .text("\(Int(progress * 100))%"),
         progressIndicator: .bar(color: .blue, height: 4),
-        accentColor: .blue,
-        badge: "\(Int(progress * 100))%"
+        progress: progress,
+        accentColor: .blue
     )
     
     try await AtollClient.shared.updateLiveActivity(activity)
@@ -547,8 +600,8 @@ func startWorkout() async throws {
         priority: .high,
         title: "Workout",
         subtitle: "Upper Body",
-        icon: .symbol(name: "figure.strengthtraining.traditional", color: .orange),
-        trailingContent: .custom(primary: "142", secondary: "bpm", unit: ""),
+        leadingIcon: .symbol(name: "figure.strengthtraining.traditional", color: .orange),
+        trailingContent: .text("142 bpm"),
         progressIndicator: .percentage(
             color: .orange,
             font: .system(weight: .bold, design: .rounded)

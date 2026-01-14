@@ -12,7 +12,7 @@
 
 ✨ **Live Activities** - Display real-time information in the closed notch (timer, downloads, workouts, etc.)  
 🔒 **Lock Screen Widgets** - Show custom widgets on the macOS lock screen  
-🎨 **Full Customization** - Icons, colors, progress indicators, animations, and layout control  
+🎨 **Full Customization** - Icons, colors, progress indicators, animations, leading overrides, and center text styles  
 ⚡ **XPC Communication** - Fast, secure inter-process communication  
 🔐 **Permission System** - User-controlled authorization in Atoll Settings  
 📊 **Priority Management** - Smart conflict resolution when multiple activities compete  
@@ -47,14 +47,38 @@ let activity = AtollLiveActivityDescriptor(
     priority: .normal,
     title: "Timer",
     subtitle: "Focus Session",
-    icon: .symbol(name: "timer", color: .blue),
-    trailingContent: .countdown(targetDate: Date().addingTimeInterval(1500)),
+    leadingIcon: .symbol(name: "timer", color: .blue),
+    trailingContent: .countdownText(targetDate: Date().addingTimeInterval(1500)),
     progressIndicator: .ring(color: .blue, lineWidth: 3),
     accentColor: .blue
 )
 
 // 3. Present it in Atoll
 try await AtollClient.shared.presentLiveActivity(activity)
+```
+
+## Building a Live Activity
+
+1. **Request authorization early** – call `requestAuthorization()` during app launch or onboarding and handle the `false` case with an in-app explanation linking to Atoll Settings → Extensions.
+2. **Describe your activity** – populate `AtollLiveActivityDescriptor` with a stable `id`, a human-friendly title/subtitle, `leadingIcon` (or `leadingContent` override), trailing content (text, marquee, countdown, icon, animation), and (optionally) `centerTextStyle`, a progress indicator, and accent color. Keep titles short and ensure custom images remain under 5 MB.
+3. **Validate before sending** – the SDK performs client-side validation, but you can also call `ExtensionDescriptorValidator.validate(_:)` in tests to spot length/size issues before hitting Atoll.
+4. **Present and update** – use `presentLiveActivity(_:)` for the initial payload, then `updateLiveActivity(_:)` with the same `id` whenever state changes. Dismiss finished sessions with `dismissLiveActivity(activityID:)` to free space for other apps.
+5. **Listen for callbacks** – hook `onActivityDismiss` to learn when the user or Atoll revoked your activity so you can stop background work or show UI in your app.
+6. **Debug with Atoll diagnostics** – inside Atoll → Settings → Extensions, enable *Extension diagnostics logging* to mirror every XPC payload, validation decision, and display outcome in the macOS Console under the `com.ebullioscopic.Atoll` subsystem. The new logs call out whether your activity rendered (music pairing vs standalone) or was hidden by user settings.
+
+> ✅ Tip: keep a single long-lived `AtollClient.shared` reference per process and re-use descriptor builders to avoid repeatedly instantiating large payloads.
+
+### Advanced Layout Controls
+
+- **Leading segment overrides** – set `leadingContent` to replace the default icon with countdown text, marquee copy, icons, or even Lottie animations using the same `AtollTrailingContent` enum used on the right wing.
+- **Center text styles** – choose between `.inheritUser` (default), `.standard`, and `.inline` via `centerTextStyle` to match or override the user's Sneak Peek preference.
+- **Marquee & countdown trailing text** – use `.marquee` for long labels that need auto-scrolling and `.countdownText` for digital timers without building a custom animation.
+
+```swift
+var descriptor = activity
+descriptor.leadingContent = .marquee("Lap 3 / 12", font: .system(weight: .semibold))
+descriptor.trailingContent = .countdownText(targetDate: targetDate)
+descriptor.centerTextStyle = .inline
 ```
 
 ---
@@ -84,8 +108,8 @@ let activity = AtollLiveActivityDescriptor(
     priority: .high,
     title: "Focus Time",
     subtitle: "Deep Work",
-    icon: .symbol(name: "brain.head.profile", color: .purple),
-    trailingContent: .countdown(targetDate: Date().addingTimeInterval(25 * 60)),
+    leadingIcon: .symbol(name: "brain.head.profile", color: .purple),
+    trailingContent: .countdownText(targetDate: Date().addingTimeInterval(25 * 60)),
     progressIndicator: .ring(color: .purple, lineWidth: 3),
     accentColor: .purple,
     allowMusicCoexistence: true
