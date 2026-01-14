@@ -57,6 +57,9 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
 
     /// Controls how the title/subtitle render in the center column
     public let centerTextStyle: AtollCenterTextStyle
+    
+    /// Sneak peek configuration (auto-shows title/subtitle on change)
+    public let sneakPeekConfig: AtollSneakPeekConfig?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -75,6 +78,7 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         case metadata
         case leadingContent
         case centerTextStyle
+        case sneakPeekConfig
     }
     
     public init(
@@ -93,7 +97,8 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         estimatedDuration: TimeInterval? = nil,
         metadata: [String: String] = [:],
         leadingContent: AtollTrailingContent? = nil,
-        centerTextStyle: AtollCenterTextStyle = .inheritUser
+        centerTextStyle: AtollCenterTextStyle = .inheritUser,
+        sneakPeekConfig: AtollSneakPeekConfig? = nil
     ) {
         self.id = id
         self.bundleIdentifier = bundleIdentifier
@@ -111,6 +116,7 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         self.metadata = metadata
         self.leadingContent = leadingContent
         self.centerTextStyle = centerTextStyle
+        self.sneakPeekConfig = sneakPeekConfig
     }
     
     /// Convenience initializer that automatically uses the main bundle identifier.
@@ -126,8 +132,7 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
     ///   - accentColor: Accent color descriptor
     ///   - badgeIcon: Optional badge icon
     ///   - allowsMusicCoexistence: Whether to allow music coexistence
-    ///   - estimatedDuration: Estimated activity duration
-    ///   - metadata: Custom metadata
+    ///   - sneakPeekConfig: Sneak peek configuration for title/subtitle display
     public init(
         id: String,
         priority: AtollLiveActivityPriority = .normal,
@@ -143,7 +148,8 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         estimatedDuration: TimeInterval? = nil,
         metadata: [String: String] = [:],
         leadingContent: AtollTrailingContent? = nil,
-        centerTextStyle: AtollCenterTextStyle = .inheritUser
+        centerTextStyle: AtollCenterTextStyle = .inheritUser,
+        sneakPeekConfig: AtollSneakPeekConfig? = nil
     ) {
         self.init(
             id: id,
@@ -160,6 +166,9 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
             allowsMusicCoexistence: allowsMusicCoexistence,
             estimatedDuration: estimatedDuration,
             metadata: metadata,
+            leadingContent: leadingContent,
+            centerTextStyle: centerTextStyle,
+            sneakPeekConfig: sneakPeekConfig
             leadingContent: leadingContent,
             centerTextStyle: centerTextStyle
         )
@@ -193,6 +202,7 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         badgeIcon = try container.decodeIfPresent(AtollIconDescriptor.self, forKey: .badgeIcon)
         allowsMusicCoexistence = try container.decodeIfPresent(Bool.self, forKey: .allowsMusicCoexistence) ?? false
         estimatedDuration = try container.decodeIfPresent(TimeInterval.self, forKey: .estimatedDuration)
+        sneakPeekConfig = try container.decodeIfPresent(AtollSneakPeekConfig.self, forKey: .sneakPeekConfig)
         metadata = try container.decodeIfPresent([String: String].self, forKey: .metadata) ?? [:]
         leadingContent = try container.decodeIfPresent(AtollTrailingContent.self, forKey: .leadingContent)
         centerTextStyle = try container.decodeIfPresent(AtollCenterTextStyle.self, forKey: .centerTextStyle) ?? .inheritUser
@@ -246,4 +256,56 @@ public enum AtollTrailingContent: Codable, Sendable, Hashable {
             return true
         }
     }
+}
+
+/// Configuration for sneak peek presentation of live activity content.
+public struct AtollSneakPeekConfig: Codable, Sendable, Hashable {
+    /// Whether to show sneak peek when activity appears or updates
+    public let enabled: Bool
+    
+    /// Display duration in seconds (nil = use default, .infinity = persistent)
+    public let duration: TimeInterval?
+    
+    /// Presentation style (overrides user preference if set)
+    public let style: AtollSneakPeekStyle?
+    
+    /// Whether to trigger sneak peek on every update (vs only initial presentation)
+    public let showOnUpdate: Bool
+    
+    public init(
+        enabled: Bool = true,
+        duration: TimeInterval? = nil,
+        style: AtollSneakPeekStyle? = nil,
+        showOnUpdate: Bool = false
+    ) {
+        self.enabled = enabled
+        self.duration = duration
+        self.style = style
+        self.showOnUpdate = showOnUpdate
+    }
+    
+    /// Default configuration (enabled, respects user preferences)
+    public static let `default` = AtollSneakPeekConfig()
+    
+    /// Disabled sneak peek
+    public static let disabled = AtollSneakPeekConfig(enabled: false)
+    
+    /// Inline style with custom duration
+    public static func inline(duration: TimeInterval? = nil) -> AtollSneakPeekConfig {
+        AtollSneakPeekConfig(duration: duration, style: .inline)
+    }
+    
+    /// Standard style with custom duration
+    public static func standard(duration: TimeInterval? = nil) -> AtollSneakPeekConfig {
+        AtollSneakPeekConfig(duration: duration, style: .standard)
+    }
+}
+
+/// Sneak peek presentation style for live activities.
+public enum AtollSneakPeekStyle: String, Codable, Sendable, Hashable {
+    /// Use the standard stacked presentation (title above subtitle)
+    case standard
+    
+    /// Use the inline presentation with marquee support
+    case inline
 }

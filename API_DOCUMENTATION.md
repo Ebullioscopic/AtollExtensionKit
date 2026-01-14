@@ -96,12 +96,30 @@ Live activities appear in the closed Dynamic Island notch, similar to timer, mus
 ### Step-by-Step Workflow
 
 1. **Authorize** – call `requestAuthorization()` as soon as practical and ask users to approve the Extensions permission inside Atoll if the call returns `false`.
-2. **Assemble a descriptor** – create an `AtollLiveActivityDescriptor` with a persistent `id`, concise title/subtitle, a `leadingIcon` (or explicit `leadingContent` override), trailing content (text/progress/marquee/countdown/animation), and optional `centerTextStyle`, progress indicator, or accent color. Keep payloads lean to pass validation.
+2. **Assemble a descriptor** – create an `AtollLiveActivityDescriptor` with a persistent `id`, concise title/subtitle, a `leadingIcon` (or explicit `leadingContent` override), trailing content (text/progress/marquee/countdown/animation), and optional `centerTextStyle`, `sneakPeekConfig`, progress indicator, or accent color. Use `allowsMusicCoexistence` when your activity can share space with music. Keep payloads lean to pass validation.
 3. **Validate/test** – during development you can run `ExtensionDescriptorValidator.validate(_:)` (part of the SDK) on sample descriptors or unit tests to catch size/length violations before shipping.
 4. **Present** – send the descriptor via `presentLiveActivity(_:)`. Re-use the same `id` for the life of the session.
 5. **Update & dismiss** – call `updateLiveActivity(_:)` whenever the state changes, then `dismissLiveActivity(activityID:)` when the session ends so Atoll frees the slot.
 6. **Monitor callbacks & logs** – subscribe to `onActivityDismiss` to detect user revocations, and enable *Extension diagnostics logging* inside Atoll → Settings → Extensions to see each payload, validation result, and display decision in Console.app.
 
+### Sneak Peek Configuration
+
+Extension live activities support **sneak peek** – a temporary HUD that displays your title/subtitle when the activity appears or updates, preventing text from rendering behind the physical notch.
+
+- **Enable automatically** – Set `sneakPeekConfig` to `.default` or omit it entirely to show title/subtitle in a brief HUD when your activity is presented. Text only appears via sneak peek, never under the notch hardware.
+- **Custom duration** – Use `.inline(duration: 3.5)` or `.standard(duration: 2.0)` to control how long the sneak peek displays (in seconds).
+- **Show on updates** – Pass `AtollSneakPeekConfig(enabled: true, showOnUpdate: true)` to trigger sneak peek every time you update the activity, not just on initial presentation.
+- **Disable sneak peek** – Set `sneakPeekConfig: .disabled` to prevent automatic HUD displays. Your activity will still render in the closed notch, but the title/subtitle will be hidden to avoid text under the hardware.
+- **Style override** – Use `.inline()` or `.standard()` to force a specific presentation style, overriding the user's Atoll preference. Leave `style: nil` to inherit the user's setting.
+
+**Important:** When sneak peek is enabled and the notch is closed, the center text (title/subtitle) is **automatically suppressed** from the notch itself to prevent rendering under the physical hardware. All messaging is routed through the sneak peek HUD instead.
+
+### Inline Sneak Peek & Dismissals
+
+- **Inline center text** – Set `centerTextStyle = .inline` (or leave `.inheritUser`) so Atoll can route your title/subtitle into its Sneak Peek HUD, keeping the closed notch clear. Pair inline mode with short trailing content so copy never collides with the hardware cutout.
+- **Leading overrides** – Use `leadingContent` for timers, lap counters, or marquee copy when you need more than a static icon. Any `AtollTrailingContent` case is valid on the left as well as the right.
+- **Music coexistence** – Mark `allowsMusicCoexistence = true` for activities that can share space with music playback; Atoll will place your badge on the album art and shift the right wing automatically.
+- **User-driven dismissals** – Register `AtollClient.shared.onActivityDismiss` to learn when someone closes your activity using Atoll’s hover affordance. Shut down background work once this callback fires to avoid recreating the activity immediately.- **Smooth animations** – Activities appear with a subtle spring scale-in animation and fade-out on dismissal. Updates to the same activity ID animate smoothly without jarring transitions.
 ### Creating a Live Activity
 
 ```swift
@@ -112,17 +130,45 @@ let activity = AtollLiveActivityDescriptor(
     title: "Workout Timer",
     subtitle: "Chest & Triceps",
     leadingIcon: .symbol(name: "figure.strengthtraining.traditional", color: .orange),
-    trailingContent: .text("Set 2/4"),
-    progressIndicator: .ring(color: .orange, lineWidth: 3),
-    accentColor: .orange,
     leadingContent: .countdownText(
         targetDate: Date().addingTimeInterval(1800),
         font: .monospacedDigit(size: 13, weight: .semibold)
     ),
-    centerTextStyle: .inline
+    trailingContent: .marquee(
+        "Set 2 of 4",
+        font: .system(size: 12, weight: .medium),
+        minDuration: 0.5
+    ),
+    progressIndicator: .ring(diameter: 28, strokeWidth: 3),
+    accentColor: .orange,
+    badgeIcon: .symbol(name: "flame.fill", color: .orange),
+    allowsMusicCoexistence: true,
+    centerTextStyle: .inline,
+    sneakPeekConfig: .inline(duration: 3.0)  // Shows title/subtitle for 3 seconds
 )
 
 try await AtollClient.shared.presentLiveActivity(activity)
+```
+
+**With sneak peek on updates:**
+
+```swift
+let activity = AtollLiveActivityDescriptor(
+    id: "download-progress",
+    title: "Downloading",
+    subtitle: "update-pkg-v2.dmg",
+    leadingIcon: .symbol(name: "arrow.down.circle.fill", color: .blue),
+    trailingContent: .text("45%"),
+    progressIndicator: .percentage,
+    progress: 0.45,
+    accentColor: .blue,
+    sneakPeekConfig: AtollSneakPeekConfig(
+        enabled: true,
+        duration: 2.0,
+        style: .standard,
+        showOnUpdate: true  // Show sneak peek on every progress update
+    )
+)
 ```
 
 ### Updating a Live Activity
@@ -151,12 +197,16 @@ AtollClient.shared.onActivityDismiss = { activityID in
 
 **Text label:**
 ```swift
-.text("Running", font: .system(weight: .medium))
+.text("Running", font: .system(size: 12, weight: .medium))
 ```
 
 **Marquee text:**
 ```swift
-.marquee("Half Marathon Training", font: .system(weight: .semibold), minDuration: 0.5)
+.marquee(
+    "Half Marathon Training",
+    font: .system(size: 12, weight: .semibold),
+    minDuration: 0.5
+)
 ```
 
 **Countdown text:**
@@ -219,27 +269,27 @@ inlineDescriptor.centerTextStyle = .inline
 
 **Ring (circular):**
 ```swift
-.ring(color: .blue, lineWidth: 3)
+.ring(diameter: 26, strokeWidth: 3)
 ```
 
 **Bar (horizontal):**
 ```swift
-.bar(color: .green, height: 4)
+.bar(width: 90, height: 4, cornerRadius: 2)
 ```
 
-**Percentage:**
+**Percentage text:**
 ```swift
-.percentage(color: .purple, font: .system(weight: .bold))
+.percentage(font: .system(size: 13, weight: .bold))
 ```
 
 **Countdown timer:**
 ```swift
-.countdown(color: .red, font: .monospacedDigit()())
+.countdown(font: .monospacedDigit(size: 13, weight: .semibold))
 ```
 
-**Lottie animation (Base64 JSON):**
+**Lottie animation:**
 ```swift
-.lottie(base64Json: lottieBase64String, scale: 1.5)
+.lottie(animationData: animationData, size: CGSize(width: 32, height: 32))
 ```
 
 **None:**
@@ -259,19 +309,20 @@ Widgets appear on the macOS lock screen similar to weather, music, or battery in
 let widget = AtollLockScreenWidgetDescriptor(
     id: "stock-ticker",
     bundleIdentifier: Bundle.main.bundleIdentifier!,
-    layoutStyle: .inline,
-    position: .init(
-        alignment: .centerLeft,
-        offsetX: 50,
-        offsetY: -100
-    ),
-    material: .frosted(opacity: 0.8),
+    layoutStyle: .card,
+    position: .init(alignment: .leading, verticalOffset: -80, horizontalOffset: 60),
+    size: CGSize(width: 220, height: 110),
+    material: .frosted,
+    cornerRadius: 18,
     content: [
         .icon(.symbol(name: "chart.line.uptrend.xyaxis", color: .green)),
-        .text("AAPL", font: .system(weight: .semibold)),
-        .text("$175.43", font: .system(weight: .bold), color: .green),
-        .text("+2.3%", font: .system(weight: .medium), color: .green)
-    ]
+        .text("AAPL", font: .system(size: 16, weight: .semibold), color: .white),
+        .text("$175.43", font: .system(size: 22, weight: .bold), color: .green),
+        .text("+2.3%", font: .system(size: 14, weight: .medium), color: .green, alignment: .trailing)
+    ],
+    accentColor: .accent,
+    dismissOnUnlock: true,
+    priority: .normal
 )
 
 try await AtollClient.shared.presentLockScreenWidget(widget)
@@ -279,25 +330,10 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 
 ### Layout Styles
 
-**Inline (horizontal row):**
-```swift
-.inline
-```
-
-**Circular (centered badge):**
-```swift
-.circular(diameter: 120)
-```
-
-**Card (rectangular container):**
-```swift
-.card(cornerRadius: 16)
-```
-
-**Custom:**
-```swift
-.custom(width: 300, height: 100)
-```
+- `.inline` – single-line layout similar to Atoll’s weather widgets (default size: 200×48 pt)
+- `.circular` – compact circular badges for gauges or progress indicators (default: 100×100 pt)
+- `.card` – rectangular surface for richer compositions (default: 220×120 pt)
+- `.custom` – opt-in when you want full control over the size (defaults to 150×80 pt; still clamped to 500×300 pt)
 
 ### Content Elements
 
@@ -308,50 +344,54 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 
 **Text:**
 ```swift
-.text("Battery", font: .system(), color: .white)
+.text("Battery", font: .system(size: 14, weight: .medium), color: .white)
 ```
 
 **Progress:**
 ```swift
-.progress(value: 0.75, style: .linear, color: .green)
+.progress(.bar(width: 120, height: 4), value: 0.75, color: .green)
 ```
 
 **Graph:**
 ```swift
-.graph(dataPoints: [0.2, 0.5, 0.8, 0.6], color: .blue)
+.graph(data: [0.2, 0.5, 0.8, 0.6], color: .blue, size: CGSize(width: 160, height: 60))
 ```
 
 **Gauge:**
 ```swift
-.gauge(value: 0.6, range: 0...1, color: .orange)
+.gauge(value: 0.6, minValue: 0, maxValue: 1, style: .circular, color: .orange)
 ```
 
 **Spacer:**
 ```swift
-.spacer(width: 10)
+.spacer(height: 8)
 ```
 
 **Divider:**
 ```swift
-.divider(color: .gray.withAlphaComponent(0.3), thickness: 1)
+.divider(color: .gray, thickness: 1)
 ```
+
+### Lock Screen Materials & Positioning
+
+- **Alignment-aware offsets** – `AtollWidgetPosition` accepts an alignment (`leading`, `center`, `trailing`) plus `verticalOffset` (±200 pt) and `horizontalOffset` (±300 pt). Use these fields instead of screen coordinates so widgets remain notch-safe across displays.
+- **Material presets** – `AtollWidgetMaterial` includes `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, and `.clear`. Pair liquid material with larger corner radii (≥20 pt) to mirror Atoll’s glass overlays.
+- **Deterministic sizing** – Provide a custom `size` when you need dimensions outside the layout style defaults. The SDK clamps all widgets to 500×300 pt to avoid overlap.
+
+### Widget Content Tips
+
+- **Mix and match elements** – Compose `.text`, `.icon`, `.progress`, `.graph`, `.gauge`, `.spacer`, and `.divider` entries to create layered widgets without embedding executable UI code.
+- **Use gauges for live metrics** – `.gauge` outputs circular or linear indicators with independent min/max ranges, perfect for weather, battery, or fitness statistics.
+- **Respect color limits** – Stick to `AtollColorDescriptor` values so Atoll can enforce monochrome/high-contrast modes on colorful wallpapers.
+- **Keep it light** – Each widget supports up to 20 content elements. Prefer summaries over dense graphs when possible to minimize rendering cost.
 
 ### Materials
 
-**Frosted glass:**
-```swift
-.frosted(opacity: 0.9)
-```
-
-**Liquid effect:**
-```swift
-.liquid(blurRadius: 20)
-```
-
-**Solid background:**
-```swift
-.solid(color: .black.withAlphaComponent(0.7))
-```
+- `.frosted` – translucent blur that mirrors Atoll’s default overlays
+- `.liquid` – high-gloss “liquid glass” treatment for hero widgets
+- `.solid` – opaque background using the widget’s accent color
+- `.semiTransparent` – subtle tint with reduced opacity
+- `.clear` – fully transparent background, ideal for minimalist text/icon layouts
 
 ---
 
@@ -369,7 +409,7 @@ When multiple live activities compete for space, priority determines visibility:
 ### Priority Rules
 
 - **Higher priority always wins** when space is limited
-- Activities with `.allowMusicCoexistence = true` can share space with music
+- Activities with `.allowsMusicCoexistence = true` can share space with music
 - Equal priority → newest activity takes precedence
 - User can manually dismiss any activity regardless of priority
 
@@ -393,9 +433,15 @@ When multiple live activities compete for space, priority determines visibility:
 
 ### 4. **Music Coexistence**
 ```swift
-activity.allowMusicCoexistence = true
+let descriptor = AtollLiveActivityDescriptor(
+    id: "timer",
+    bundleIdentifier: Bundle.main.bundleIdentifier!,
+    title: "Timer",
+    leadingIcon: .symbol(name: "timer", color: .blue),
+    allowsMusicCoexistence: true
+)
 ```
-Set this for activities that should appear alongside music playback.
+Set `allowsMusicCoexistence = true` for activities that should appear alongside music playback.
 
 ### 5. **Update Efficiently**
 - Batch multiple property changes into one `updateLiveActivity()` call
@@ -524,12 +570,11 @@ class PomodoroManager {
             leadingIcon: .symbol(name: "brain.head.profile", color: .purple),
             trailingContent: .countdownText(
                 targetDate: Date().addingTimeInterval(25 * 60),
-                font: .monospacedDigit()(weight: .semibold, design: .rounded)
+                font: .monospacedDigit(size: 14, weight: .semibold)
             ),
-            progressIndicator: .ring(color: .purple, lineWidth: 3),
+            progressIndicator: .ring(diameter: 30, strokeWidth: 3),
             accentColor: .purple,
-            allowMusicCoexistence: true,
-            maxDuration: 1500
+            allowsMusicCoexistence: true
         )
         
         try await client.presentLiveActivity(activity)
@@ -549,7 +594,7 @@ func showDownload(filename: String, progress: Double) async throws {
         subtitle: filename,
         leadingIcon: .symbol(name: "arrow.down.circle.fill", color: .blue),
         trailingContent: .text("\(Int(progress * 100))%"),
-        progressIndicator: .bar(color: .blue, height: 4),
+        progressIndicator: .bar(width: 110, height: 4),
         progress: progress,
         accentColor: .blue
     )
@@ -569,20 +614,24 @@ func showCryptoWidget(symbol: String, price: Double, change: Double) async throw
         id: "crypto-\(symbol)",
         bundleIdentifier: Bundle.main.bundleIdentifier!,
         layoutStyle: .inline,
-        position: .init(alignment: .topCenter, offsetX: 0, offsetY: 100),
-        material: .frosted(opacity: 0.85),
+        position: .init(alignment: .center, verticalOffset: 100),
+        material: .frosted,
         content: [
             .icon(.symbol(name: "bitcoinsign.circle.fill", color: .orange)),
-            .spacer(width: 8),
-            .text(symbol, font: .system(weight: .bold)),
-            .spacer(width: 12),
-            .text("$\(String(format: "%.2f", price))", 
-                  font: .monospacedDigit()(weight: .semibold), 
-                  color: .white),
-            .spacer(width: 8),
-            .text(String(format: "%+.2f%%", change), 
-                  font: .monospacedDigit()(weight: .medium), 
-                  color: color)
+            .spacer(height: 4),
+            .text(symbol, font: .system(size: 16, weight: .bold), color: .white),
+            .spacer(height: 6),
+            .text(
+                "$\(String(format: "%.2f", price))",
+                font: .monospacedDigit(size: 16, weight: .semibold),
+                color: .white
+            ),
+            .spacer(height: 4),
+            .text(
+                String(format: "%+.2f%%", change),
+                font: .monospacedDigit(size: 14, weight: .medium),
+                color: color
+            )
         ]
     )
     
@@ -603,11 +652,10 @@ func startWorkout() async throws {
         leadingIcon: .symbol(name: "figure.strengthtraining.traditional", color: .orange),
         trailingContent: .text("142 bpm"),
         progressIndicator: .percentage(
-            color: .orange,
-            font: .system(weight: .bold, design: .rounded)
+                font: .system(size: 14, weight: .bold, design: .rounded)
         ),
         accentColor: .orange,
-        allowMusicCoexistence: true,
+            allowsMusicCoexistence: true,
         metadata: ["startTime": "\(Date())"]
     )
     

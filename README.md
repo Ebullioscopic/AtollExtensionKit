@@ -12,11 +12,13 @@
 
 ✨ **Live Activities** - Display real-time information in the closed notch (timer, downloads, workouts, etc.)  
 🔒 **Lock Screen Widgets** - Show custom widgets on the macOS lock screen  
-🎨 **Full Customization** - Icons, colors, progress indicators, animations, leading overrides, and center text styles  
+🫧 **Sneak Peek Alignment** - Route titles/subtitles into Atoll's inline HUD so text never hides under the notch with configurable duration and modes  
+🎨 **Full Customization** - Icons, colors, progress indicators, leading overrides, marquee/countdown trailing text, center styles, and sneak peek configuration  
 ⚡ **XPC Communication** - Fast, secure inter-process communication  
 🔐 **Permission System** - User-controlled authorization in Atoll Settings  
 📊 **Priority Management** - Smart conflict resolution when multiple activities compete  
 ✅ **Type-Safe** - Modern Swift API with Codable models and async/await  
+🎬 **Smooth Animations** - Spring-based scale transitions for appear/dismiss with customizable sneak peek behavior
 
 ---
 
@@ -40,7 +42,7 @@ import AtollExtensionKit
 // 1. Request authorization
 let authorized = try await AtollClient.shared.requestAuthorization()
 
-// 2. Create a live activity
+// 2. Create a live activity with sneak peek
 let activity = AtollLiveActivityDescriptor(
     id: "my-timer",
     bundleIdentifier: Bundle.main.bundleIdentifier!,
@@ -48,9 +50,13 @@ let activity = AtollLiveActivityDescriptor(
     title: "Timer",
     subtitle: "Focus Session",
     leadingIcon: .symbol(name: "timer", color: .blue),
+    leadingContent: .marquee("Focus • Session 1", font: .system(size: 13, weight: .semibold)),
     trailingContent: .countdownText(targetDate: Date().addingTimeInterval(1500)),
     progressIndicator: .ring(color: .blue, lineWidth: 3),
-    accentColor: .blue
+    centerTextStyle: .inline,
+    accentColor: .blue,
+    allowsMusicCoexistence: true,
+    sneakPeekConfig: .inline(duration: 2.5)  // Show title/subtitle in HUD for 2.5 seconds
 )
 
 // 3. Present it in Atoll
@@ -68,6 +74,15 @@ try await AtollClient.shared.presentLiveActivity(activity)
 
 > ✅ Tip: keep a single long-lived `AtollClient.shared` reference per process and re-use descriptor builders to avoid repeatedly instantiating large payloads.
 
+### Inline Sneak Peek & Dismissals
+
+- **Sneak peek configuration** – Enable automatic HUD displays with `sneakPeekConfig: .default` to show your title/subtitle when the activity appears. Use `.inline(duration: 3.0)` or `.standard(duration: 2.0)` to customize the display style and duration. Set `showOnUpdate: true` to trigger sneak peek on every update, not just initial presentation. When sneak peek is enabled and the notch is closed, center text is automatically suppressed to prevent rendering under the hardware.
+- **Inline center text** – Set `centerTextStyle = .inline` (or leave `.inheritUser`) so Atoll can route your title/subtitle into its Sneak Peek HUD when the user prefers inline mode, keeping the closed notch clear. Pair this with concise trailing content so copy never collides with hardware cutouts.
+- **Leading overrides** – Use `leadingContent` for timers, lap counters, or animated glyphs when you need richer data than a static icon. The API reuses `AtollTrailingContent`, so anything valid on the right wing also works on the left.
+- **Music coexistence** – Mark `allowsMusicCoexistence = true` for activities (e.g., timers) that can share space with the music tile; Atoll will place your badge on the album art and reserve the right wing automatically.
+- **User-driven dismissals** – Register `AtollClient.shared.onActivityDismiss` to learn when someone closes your activity from the hover affordance in Atoll. Stop related background work once you receive the callback to keep resource usage low.
+- **Smooth animations** – Activities appear with spring scale-in animations and fade-out on dismissal. Updates to the same activity ID animate smoothly without jarring transitions.
+
 ### Advanced Layout Controls
 
 - **Leading segment overrides** – set `leadingContent` to replace the default icon with countdown text, marquee copy, icons, or even Lottie animations using the same `AtollTrailingContent` enum used on the right wing.
@@ -76,7 +91,7 @@ try await AtollClient.shared.presentLiveActivity(activity)
 
 ```swift
 var descriptor = activity
-descriptor.leadingContent = .marquee("Lap 3 / 12", font: .system(weight: .semibold))
+descriptor.leadingContent = .marquee("Lap 3 / 12", font: .system(size: 13, weight: .semibold))
 descriptor.trailingContent = .countdownText(targetDate: targetDate)
 descriptor.centerTextStyle = .inline
 ```
@@ -109,10 +124,12 @@ let activity = AtollLiveActivityDescriptor(
     title: "Focus Time",
     subtitle: "Deep Work",
     leadingIcon: .symbol(name: "brain.head.profile", color: .purple),
+    leadingContent: .marquee("Lap 2 of 4", font: .system(size: 13, weight: .medium)),
     trailingContent: .countdownText(targetDate: Date().addingTimeInterval(25 * 60)),
     progressIndicator: .ring(color: .purple, lineWidth: 3),
+    centerTextStyle: .inline,
     accentColor: .purple,
-    allowMusicCoexistence: true
+    allowsMusicCoexistence: true
 )
 
 try await AtollClient.shared.presentLiveActivity(activity)
@@ -124,18 +141,37 @@ try await AtollClient.shared.presentLiveActivity(activity)
 let widget = AtollLockScreenWidgetDescriptor(
     id: "weather",
     bundleIdentifier: Bundle.main.bundleIdentifier!,
-    layoutStyle: .inline,
-    position: .init(alignment: .topCenter, offsetX: 0, offsetY: 100),
-    material: .frosted(opacity: 0.85),
+    layoutStyle: .card,
+    position: .init(alignment: .center, verticalOffset: 120, horizontalOffset: 0),
+    size: CGSize(width: 240, height: 110),
+    material: .liquid,
+    cornerRadius: 20,
     content: [
         .icon(.symbol(name: "cloud.sun.fill", color: .yellow)),
-        .text("San Francisco", font: .system(weight: .semibold)),
-        .text("72°F", font: .system(weight: .bold), color: .white)
-    ]
+        .text("San Francisco", font: .system(size: 16, weight: .semibold), color: .white),
+        .text("72°F", font: .system(size: 28, weight: .bold), color: .white, alignment: .trailing),
+        .gauge(value: 0.72, minValue: 0, maxValue: 1, style: .circular, color: .white)
+    ],
+    accentColor: .accent,
+    dismissOnUnlock: true,
+    priority: .normal
 )
 
 try await AtollClient.shared.presentLockScreenWidget(widget)
 ```
+
+### Lock Screen Materials & Positioning
+
+- **Alignment-aware offsets** – `AtollWidgetPosition` clamps horizontal offsets to ±300 pt and vertical offsets to ±200 pt relative to the requested alignment (`leading`, `center`, `trailing`). Use these fields instead of hard-coded screen coordinates so widgets stay notch-safe on multi-display setups.
+- **Material presets** – Choose from `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, or `.clear` via `AtollWidgetMaterial`. Liquid material pairs well with corner radii ≥ 20 pt to mirror Atoll’s “glass” overlays.
+- **Deterministic sizing** – Supply an explicit `size` when you need dimensions outside each layout style’s default (e.g., taller inline widgets). The SDK automatically clamps to the 500×300 pt safety bounds.
+
+### Widget Content Tips
+
+- **Mix and match elements** – Combine `.text`, `.icon`, `.progress`, `.graph`, `.gauge`, `.spacer`, and `.divider` entries in the `content` array to build rich layouts without shipping executable UI code.
+- **Use gauges for live metrics** – `.gauge` supports circular or linear styles with independent min/max ranges, making it ideal for weather, fitness rings, or battery indicators.
+- **Respect color limits** – Stick to `AtollColorDescriptor` values so Atoll can enforce contrast modes (monochrome, high contrast) when rendering on top of lock screen wallpapers.
+- **Keep it light** – Each widget may include up to 20 elements; reuse existing gauges/text elements instead of sending large graphs when a summary will do.
 
 ---
 
@@ -229,6 +265,7 @@ When multiple activities compete for space, **priority** determines visibility:
 - Listen for `onActivityDismiss` callbacks
 - Handle errors gracefully
 - Validate descriptors before presenting
+- Match the user’s Sneak Peek preference by using `.inheritUser` or opt into `.inline` when you want text routed into the HUD
 
 ### ❌ Don't
 
@@ -237,6 +274,7 @@ When multiple activities compete for space, **priority** determines visibility:
 - Send updates faster than 1/second
 - Ignore authorization errors
 - Assume Atoll is installed
+- Depend on center text staying visible when the user forces inline Sneak Peek — provide leading/trailing fallbacks instead
 
 ---
 
