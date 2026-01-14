@@ -28,7 +28,7 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
     /// Leading icon (left side)
     public let leadingIcon: AtollIconDescriptor
     
-    /// Trailing content configuration
+    /// Trailing content configuration (right side)
     public let trailingContent: AtollTrailingContent
     
     /// Optional progress indicator
@@ -51,6 +51,31 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
     
     /// Custom metadata (app-specific)
     public let metadata: [String: String]
+
+    /// Optional override for the entire leading segment (left side)
+    public let leadingContent: AtollTrailingContent?
+
+    /// Controls how the title/subtitle render in the center column
+    public let centerTextStyle: AtollCenterTextStyle
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case bundleIdentifier
+        case priority
+        case title
+        case subtitle
+        case leadingIcon
+        case trailingContent
+        case progressIndicator
+        case progress
+        case accentColor
+        case badgeIcon
+        case allowsMusicCoexistence
+        case estimatedDuration
+        case metadata
+        case leadingContent
+        case centerTextStyle
+    }
     
     public init(
         id: String,
@@ -66,7 +91,9 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         badgeIcon: AtollIconDescriptor? = nil,
         allowsMusicCoexistence: Bool = false,
         estimatedDuration: TimeInterval? = nil,
-        metadata: [String: String] = [:]
+        metadata: [String: String] = [:],
+        leadingContent: AtollTrailingContent? = nil,
+        centerTextStyle: AtollCenterTextStyle = .inheritUser
     ) {
         self.id = id
         self.bundleIdentifier = bundleIdentifier
@@ -82,6 +109,8 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         self.allowsMusicCoexistence = allowsMusicCoexistence
         self.estimatedDuration = estimatedDuration
         self.metadata = metadata
+        self.leadingContent = leadingContent
+        self.centerTextStyle = centerTextStyle
     }
     
     /// Convenience initializer that automatically uses the main bundle identifier.
@@ -112,7 +141,9 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         badgeIcon: AtollIconDescriptor? = nil,
         allowsMusicCoexistence: Bool = false,
         estimatedDuration: TimeInterval? = nil,
-        metadata: [String: String] = [:]
+        metadata: [String: String] = [:],
+        leadingContent: AtollTrailingContent? = nil,
+        centerTextStyle: AtollCenterTextStyle = .inheritUser
     ) {
         self.init(
             id: id,
@@ -128,7 +159,9 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
             badgeIcon: badgeIcon,
             allowsMusicCoexistence: allowsMusicCoexistence,
             estimatedDuration: estimatedDuration,
-            metadata: metadata
+            metadata: metadata,
+            leadingContent: leadingContent,
+            centerTextStyle: centerTextStyle
         )
     }
     
@@ -140,14 +173,52 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         leadingIcon.isValid &&
         (badgeIcon?.isValid ?? true) &&
         trailingContent.isValid &&
+        (leadingContent?.isValid ?? true) &&
         progress >= 0 && progress <= 1
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        bundleIdentifier = try container.decode(String.self, forKey: .bundleIdentifier)
+        priority = try container.decode(AtollLiveActivityPriority.self, forKey: .priority)
+        title = try container.decode(String.self, forKey: .title)
+        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
+        leadingIcon = try container.decode(AtollIconDescriptor.self, forKey: .leadingIcon)
+        trailingContent = try container.decodeIfPresent(AtollTrailingContent.self, forKey: .trailingContent) ?? .none
+        progressIndicator = try container.decodeIfPresent(AtollProgressIndicator.self, forKey: .progressIndicator)
+        let decodedProgress = try container.decodeIfPresent(Double.self, forKey: .progress) ?? 0
+        progress = min(max(decodedProgress, 0), 1)
+        accentColor = try container.decode(AtollColorDescriptor.self, forKey: .accentColor)
+        badgeIcon = try container.decodeIfPresent(AtollIconDescriptor.self, forKey: .badgeIcon)
+        allowsMusicCoexistence = try container.decodeIfPresent(Bool.self, forKey: .allowsMusicCoexistence) ?? false
+        estimatedDuration = try container.decodeIfPresent(TimeInterval.self, forKey: .estimatedDuration)
+        metadata = try container.decodeIfPresent([String: String].self, forKey: .metadata) ?? [:]
+        leadingContent = try container.decodeIfPresent(AtollTrailingContent.self, forKey: .leadingContent)
+        centerTextStyle = try container.decodeIfPresent(AtollCenterTextStyle.self, forKey: .centerTextStyle) ?? .inheritUser
+    }
+}
+
+/// Center text presentation style for live activities.
+public enum AtollCenterTextStyle: String, Codable, Sendable, Hashable {
+    /// Follow the user's Sneak Peek style preference inside Atoll.
+    case inheritUser
+    /// Always use the stacked (default) presentation.
+    case standard
+    /// Use the inline Sneak Peek presentation with marquee support.
+    case inline
 }
 
 /// Trailing content configuration for the right side of the activity.
 public enum AtollTrailingContent: Codable, Sendable, Hashable {
     /// Text label
     case text(String, font: AtollFontDescriptor = .system(size: 12, weight: .medium))
+
+    /// Marquee text label
+    case marquee(String, font: AtollFontDescriptor = .system(size: 12, weight: .medium), minDuration: Double = 0.4)
+
+    /// Countdown (mm:ss / HH:mm:ss) rendered as text
+    case countdownText(targetDate: Date, font: AtollFontDescriptor = .monospacedDigit(size: 13, weight: .semibold))
     
     /// Icon
     case icon(AtollIconDescriptor)
@@ -161,12 +232,16 @@ public enum AtollTrailingContent: Codable, Sendable, Hashable {
     /// No trailing content
     case none
     
-    var isValid: Bool {
+    public var isValid: Bool {
         switch self {
         case .icon(let descriptor):
             return descriptor.isValid
         case .animation(let data, _):
             return data.count <= 5_242_880 // 5MB limit
+        case .marquee(let text, _, _):
+            return !text.isEmpty
+        case .countdownText:
+            return true
         default:
             return true
         }
