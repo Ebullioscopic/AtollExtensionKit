@@ -25,17 +25,11 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
     /// Optional subtitle
     public let subtitle: String?
     
-    /// Leading icon (left side)
+    /// Leading icon (left side) - Strictly Icon, Image or Lottie
     public let leadingIcon: AtollIconDescriptor
     
-    /// Trailing content configuration (right side)
+    /// Trailing content configuration (right side) - Strictly one type
     public let trailingContent: AtollTrailingContent
-    
-    /// Optional progress indicator
-    public let progressIndicator: AtollProgressIndicator?
-    
-    /// Progress value (0.0 to 1.0)
-    public let progress: Double
     
     /// Accent color for UI elements
     public let accentColor: AtollColorDescriptor
@@ -51,9 +45,6 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
     
     /// Custom metadata (app-specific)
     public let metadata: [String: String]
-
-    /// Optional override for the entire leading segment (left side)
-    public let leadingContent: AtollTrailingContent?
 
     /// Controls how the title/subtitle render in the center column
     public let centerTextStyle: AtollCenterTextStyle
@@ -75,14 +66,11 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         case subtitle
         case leadingIcon
         case trailingContent
-        case progressIndicator
-        case progress
         case accentColor
         case badgeIcon
         case allowsMusicCoexistence
         case estimatedDuration
         case metadata
-        case leadingContent
         case centerTextStyle
         case sneakPeekConfig
         case sneakPeekTitle
@@ -97,14 +85,11 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         subtitle: String? = nil,
         leadingIcon: AtollIconDescriptor,
         trailingContent: AtollTrailingContent = .none,
-        progressIndicator: AtollProgressIndicator? = nil,
-        progress: Double = 0,
         accentColor: AtollColorDescriptor = .accent,
         badgeIcon: AtollIconDescriptor? = nil,
         allowsMusicCoexistence: Bool = false,
         estimatedDuration: TimeInterval? = nil,
         metadata: [String: String] = [:],
-        leadingContent: AtollTrailingContent? = nil,
         centerTextStyle: AtollCenterTextStyle = .inheritUser,
         sneakPeekConfig: AtollSneakPeekConfig? = nil,
         sneakPeekTitle: String? = nil,
@@ -117,14 +102,11 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         self.subtitle = subtitle
         self.leadingIcon = leadingIcon
         self.trailingContent = trailingContent
-        self.progressIndicator = progressIndicator
-        self.progress = min(max(progress, 0), 1)
         self.accentColor = accentColor
         self.badgeIcon = badgeIcon
         self.allowsMusicCoexistence = allowsMusicCoexistence
         self.estimatedDuration = estimatedDuration
         self.metadata = metadata
-        self.leadingContent = leadingContent
         self.centerTextStyle = centerTextStyle
         self.sneakPeekConfig = sneakPeekConfig
         self.sneakPeekTitle = sneakPeekTitle
@@ -139,8 +121,6 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
     ///   - subtitle: Optional subtitle
     ///   - leadingIcon: Leading icon descriptor
     ///   - trailingContent: Trailing content configuration
-    ///   - progressIndicator: Optional progress indicator
-    ///   - progress: Progress value (0.0 to 1.0)
     ///   - accentColor: Accent color descriptor
     ///   - badgeIcon: Optional badge icon
     ///   - allowsMusicCoexistence: Whether to allow music coexistence
@@ -152,14 +132,11 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         subtitle: String? = nil,
         leadingIcon: AtollIconDescriptor,
         trailingContent: AtollTrailingContent = .none,
-        progressIndicator: AtollProgressIndicator? = nil,
-        progress: Double = 0,
         accentColor: AtollColorDescriptor = .accent,
         badgeIcon: AtollIconDescriptor? = nil,
         allowsMusicCoexistence: Bool = false,
         estimatedDuration: TimeInterval? = nil,
         metadata: [String: String] = [:],
-        leadingContent: AtollTrailingContent? = nil,
         centerTextStyle: AtollCenterTextStyle = .inheritUser,
         sneakPeekConfig: AtollSneakPeekConfig? = nil,
         sneakPeekTitle: String? = nil,
@@ -173,14 +150,11 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
             subtitle: subtitle,
             leadingIcon: leadingIcon,
             trailingContent: trailingContent,
-            progressIndicator: progressIndicator,
-            progress: progress,
             accentColor: accentColor,
             badgeIcon: badgeIcon,
             allowsMusicCoexistence: allowsMusicCoexistence,
             estimatedDuration: estimatedDuration,
             metadata: metadata,
-            leadingContent: leadingContent,
             centerTextStyle: centerTextStyle,
             sneakPeekConfig: sneakPeekConfig,
             sneakPeekTitle: sneakPeekTitle,
@@ -195,9 +169,7 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         !title.isEmpty &&
         leadingIcon.isValid &&
         (badgeIcon?.isValid ?? true) &&
-        trailingContent.isValid &&
-        (leadingContent?.isValid ?? true) &&
-        progress >= 0 && progress <= 1
+        trailingContent.isValid
     }
 
     public init(from decoder: Decoder) throws {
@@ -209,16 +181,12 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
         subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
         leadingIcon = try container.decode(AtollIconDescriptor.self, forKey: .leadingIcon)
         trailingContent = try container.decodeIfPresent(AtollTrailingContent.self, forKey: .trailingContent) ?? .none
-        progressIndicator = try container.decodeIfPresent(AtollProgressIndicator.self, forKey: .progressIndicator)
-        let decodedProgress = try container.decodeIfPresent(Double.self, forKey: .progress) ?? 0
-        progress = min(max(decodedProgress, 0), 1)
         accentColor = try container.decode(AtollColorDescriptor.self, forKey: .accentColor)
         badgeIcon = try container.decodeIfPresent(AtollIconDescriptor.self, forKey: .badgeIcon)
         allowsMusicCoexistence = try container.decodeIfPresent(Bool.self, forKey: .allowsMusicCoexistence) ?? false
         estimatedDuration = try container.decodeIfPresent(TimeInterval.self, forKey: .estimatedDuration)
         sneakPeekConfig = try container.decodeIfPresent(AtollSneakPeekConfig.self, forKey: .sneakPeekConfig)
         metadata = try container.decodeIfPresent([String: String].self, forKey: .metadata) ?? [:]
-        leadingContent = try container.decodeIfPresent(AtollTrailingContent.self, forKey: .leadingContent)
         centerTextStyle = try container.decodeIfPresent(AtollCenterTextStyle.self, forKey: .centerTextStyle) ?? .inheritUser
         sneakPeekTitle = try container.decodeIfPresent(String.self, forKey: .sneakPeekTitle)
         sneakPeekSubtitle = try container.decodeIfPresent(String.self, forKey: .sneakPeekSubtitle)
@@ -253,13 +221,13 @@ public enum AtollTrailingContent: Codable, Sendable, Hashable {
     )
 
     /// Countdown (mm:ss / HH:mm:ss) rendered as text
-    case countdownText(
+    case countdown(
         targetDate: Date,
         font: AtollFontDescriptor = .monospacedDigit(size: 13, weight: .semibold),
         color: AtollColorDescriptor? = nil
     )
     
-    /// Icon
+    /// Icon or Image
     case icon(AtollIconDescriptor)
     
     /// Spectrum visualization (like music)
@@ -267,6 +235,23 @@ public enum AtollTrailingContent: Codable, Sendable, Hashable {
     
     /// Custom Lottie animation
     case animation(data: Data, size: CGSize = CGSize(width: 50, height: 30))
+    
+    /// Circular progress ring
+    case ring(
+        value: Double,
+        diameter: CGFloat = 24,
+        strokeWidth: CGFloat = 3,
+        color: AtollColorDescriptor? = nil
+    )
+    
+    /// Horizontal progress bar
+    case bar(
+        value: Double,
+        total: Double = 1.0,
+        height: CGFloat = 4,
+        cornerRadius: CGFloat = 2,
+        color: AtollColorDescriptor? = nil
+    )
     
     /// No trailing content
     case none
@@ -279,8 +264,14 @@ public enum AtollTrailingContent: Codable, Sendable, Hashable {
             return data.count <= 5_242_880 // 5MB limit
         case .marquee(let text, _, _, _):
             return !text.isEmpty
-        case .countdownText(_, _, _):
+        case .countdown(_, _, _):
             return true
+        case .text(let text, _, _):
+            return !text.isEmpty
+        case .ring(let value, _, _, _):
+            return value >= 0 && value <= 1
+        case .bar(let value, let total, _, _, _):
+            return total > 0 && value >= 0
         default:
             return true
         }
