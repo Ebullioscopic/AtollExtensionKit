@@ -50,12 +50,10 @@ let activity = AtollLiveActivityDescriptor(
     title: "Timer",
     subtitle: "Focus Session",
     leadingIcon: .symbol(name: "timer", color: .blue),
-    leadingContent: .marquee("Focus • Session 1", font: .system(size: 13, weight: .semibold)),
     trailingContent: .countdownText(
         targetDate: Date().addingTimeInterval(1500),
         color: .blue
     ),
-    progressIndicator: .ring(diameter: 26, strokeWidth: 3, color: .blue),
     centerTextStyle: .inline,
     accentColor: .blue,
     allowsMusicCoexistence: true,
@@ -70,10 +68,12 @@ try await AtollClient.shared.presentLiveActivity(activity)
 
 > ℹ️ If you omit `sneakPeekConfig`, Atoll defaults to the `.default` behavior (enabled, duration inherited from the host) so your title/subtitle still display in the Sneak Peek HUD while the notch stays clear. Pass `.disabled` to opt out and keep center text visible inside the notch.
 
+> 🎯 Want a ring/bar/percentage on the right wing? Set `trailingContent: .none` and supply `progressIndicator` instead. Trailing text/content and progress indicators are mutually exclusive so the wing always renders a single element.
+
 ## Building a Live Activity
 
 1. **Request authorization early** – call `requestAuthorization()` during app launch or onboarding and handle the `false` case with an in-app explanation linking to Atoll Settings → Extensions.
-2. **Describe your activity** – populate `AtollLiveActivityDescriptor` with a stable `id`, a human-friendly title/subtitle, `leadingIcon` (or `leadingContent` override), trailing content (text, marquee, countdown, icon, animation), and (optionally) `centerTextStyle`, a progress indicator, and accent color. Keep titles short and ensure custom images remain under 5 MB.
+2. **Describe your activity** – populate `AtollLiveActivityDescriptor` with a stable `id`, a human-friendly title/subtitle, `leadingIcon` (optionally overridden with another icon/Lottie via `leadingContent`), trailing content (text, marquee, countdown, icon, animation), and (optionally) `centerTextStyle`, a mutually exclusive progress indicator, and accent color. Keep titles short and ensure custom images remain under 5 MB.
 3. **Validate before sending** – the SDK performs client-side validation, but you can also call `ExtensionDescriptorValidator.validate(_:)` in tests to spot length/size issues before hitting Atoll.
 4. **Present and update** – use `presentLiveActivity(_:)` for the initial payload, then `updateLiveActivity(_:)` with the same `id` whenever state changes. Dismiss finished sessions with `dismissLiveActivity(activityID:)` to free space for other apps.
 5. **Listen for callbacks** – hook `onActivityDismiss` to learn when the user or Atoll revoked your activity so you can stop background work or show UI in your app.
@@ -86,20 +86,20 @@ try await AtollClient.shared.presentLiveActivity(activity)
 - **Sneak peek configuration** – Omit `sneakPeekConfig` (or set `.default`) to automatically route your title/subtitle into Atoll's HUD whenever the activity appears. Use `.inline(duration: 3.0)` or `.standard(duration: 2.0)` to customize the display style and duration, and set `showOnUpdate: true` to trigger sneak peek on every update. If you need the center text to remain visible inside the notch, explicitly pass `.disabled`; otherwise Atoll suppresses it while the notch is closed to avoid the hardware cutout.
 - **HUD copy overrides** – Set `sneakPeekTitle` and `sneakPeekSubtitle` when you need different messaging in the HUD versus the main descriptor (e.g., concise notch title with a richer sneak peek phrase). These fall back to `title` / `subtitle` automatically.
 - **Inline center text** – Set `centerTextStyle = .inline` (or leave `.inheritUser`) so Atoll can route your title/subtitle into its Sneak Peek HUD when the user prefers inline mode, keeping the closed notch clear. Pair this with concise trailing content so copy never collides with hardware cutouts.
-- **Leading overrides** – Use `leadingContent` for timers, lap counters, or animated glyphs when you need richer data than a static icon. The API reuses `AtollTrailingContent`, so anything valid on the right wing also works on the left.
+- **Leading overrides** – Use `leadingContent` to swap the default icon for another icon/app icon or a bundled Lottie animation. Text-based entries are rejected so the left wing always stays purely visual.
 - **Music coexistence** – Mark `allowsMusicCoexistence = true` for activities (e.g., timers) that can share space with the music tile; Atoll will place your badge on the album art and reserve the right wing automatically.
 - **User-driven dismissals** – Register `AtollClient.shared.onActivityDismiss` to learn when someone closes your activity from the hover affordance in Atoll. Stop related background work once you receive the callback to keep resource usage low.
 - **Smooth animations** – Activities appear with spring scale-in animations and fade-out on dismissal. Updates to the same activity ID animate smoothly without jarring transitions.
 
 ### Advanced Layout Controls
 
-- **Leading segment overrides** – set `leadingContent` to replace the default icon with countdown text, marquee copy, icons, or even Lottie animations using the same `AtollTrailingContent` enum used on the right wing.
+- **Leading segment overrides** – set `leadingContent` to replace the default icon with another `AtollIconDescriptor` or `.animation` payload (Lottie). The left wing never renders text/countdowns, keeping the notch hardware clear.
 - **Center text styles** – choose between `.inheritUser` (default), `.standard`, and `.inline` via `centerTextStyle` to match or override the user's Sneak Peek preference.
 - **Marquee & countdown trailing text** – use `.marquee` for long labels that need auto-scrolling and `.countdownText` for digital timers without building a custom animation.
 
 ```swift
 var descriptor = activity
-descriptor.leadingContent = .marquee("Lap 3 / 12", font: .system(size: 13, weight: .semibold))
+descriptor.leadingContent = .icon(.appIcon(bundleIdentifier: "com.example.workout", size: CGSize(width: 28, height: 28), cornerRadius: 6))
 descriptor.trailingContent = .countdownText(targetDate: targetDate)
 descriptor.centerTextStyle = .inline
 ```
@@ -134,7 +134,6 @@ let activity = AtollLiveActivityDescriptor(
     title: "Focus Time",
     subtitle: "Deep Work",
     leadingIcon: .symbol(name: "brain.head.profile", color: .purple),
-    leadingContent: .marquee("Lap 2 of 4", font: .system(size: 13, weight: .medium)),
     trailingContent: .countdownText(targetDate: Date().addingTimeInterval(25 * 60)),
     progressIndicator: .ring(diameter: 26, strokeWidth: 3, color: .purple),
     centerTextStyle: .inline,

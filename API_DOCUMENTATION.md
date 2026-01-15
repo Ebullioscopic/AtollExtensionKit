@@ -96,7 +96,7 @@ Live activities appear in the closed Dynamic Island notch, similar to timer, mus
 ### Step-by-Step Workflow
 
 1. **Authorize** – call `requestAuthorization()` as soon as practical and ask users to approve the Extensions permission inside Atoll if the call returns `false`.
-2. **Assemble a descriptor** – create an `AtollLiveActivityDescriptor` with a persistent `id`, concise title/subtitle, a `leadingIcon` (or explicit `leadingContent` override), trailing content (text/progress/marquee/countdown/animation), and optional `centerTextStyle`, `sneakPeekConfig`, progress indicator, or accent color. Use `allowsMusicCoexistence` when your activity can share space with music. Keep payloads lean to pass validation.
+2. **Assemble a descriptor** – create an `AtollLiveActivityDescriptor` with a persistent `id`, concise title/subtitle, a `leadingIcon` (optionally swapped for another icon/Lottie via `leadingContent`), trailing content (text/marquee/countdown/icon/animation), and optional `centerTextStyle`, `sneakPeekConfig`, or accent color. If you instead want a ring/bar/percentage on the right wing, set `trailingContent = .none` and supply a `progressIndicator`—the two are mutually exclusive. Use `allowsMusicCoexistence` when your activity can share space with music. Keep payloads lean to pass validation.
 3. **Validate/test** – during development you can run `ExtensionDescriptorValidator.validate(_:)` (part of the SDK) on sample descriptors or unit tests to catch size/length violations before shipping.
 4. **Present** – send the descriptor via `presentLiveActivity(_:)`. Re-use the same `id` for the life of the session.
 5. **Update & dismiss** – call `updateLiveActivity(_:)` whenever the state changes, then `dismissLiveActivity(activityID:)` when the session ends so Atoll frees the slot.
@@ -119,7 +119,7 @@ You can also override the HUD copy without changing the main descriptor text by 
 ### Inline Sneak Peek & Dismissals
 
 - **Inline center text** – Set `centerTextStyle = .inline` (or leave `.inheritUser`) so Atoll can route your title/subtitle into its Sneak Peek HUD, keeping the closed notch clear. Pair inline mode with short trailing content so copy never collides with the hardware cutout.
-- **Leading overrides** – Use `leadingContent` for timers, lap counters, or marquee copy when you need more than a static icon. Any `AtollTrailingContent` case is valid on the left as well as the right.
+- **Leading overrides** – Use `leadingContent` when you need to replace the default icon with another `AtollIconDescriptor` or a bundled Lottie animation. Text-based cases are rejected so the left wing always stays purely visual.
 - **Music coexistence** – Mark `allowsMusicCoexistence = true` for activities that can share space with music playback; Atoll will place your badge on the album art and shift the right wing automatically.
 - **User-driven dismissals** – Register `AtollClient.shared.onActivityDismiss` to learn when someone closes your activity using Atoll’s hover affordance. Shut down background work once this callback fires to avoid recreating the activity immediately.- **Smooth animations** – Activities appear with a subtle spring scale-in animation and fade-out on dismissal. Updates to the same activity ID animate smoothly without jarring transitions.
 ### Creating a Live Activity
@@ -132,16 +132,18 @@ let activity = AtollLiveActivityDescriptor(
     title: "Workout Timer",
     subtitle: "Chest & Triceps",
     leadingIcon: .symbol(name: "figure.strengthtraining.traditional", color: .orange),
-    leadingContent: .countdownText(
-        targetDate: Date().addingTimeInterval(1800),
-        font: .monospacedDigit(size: 13, weight: .semibold)
+    leadingContent: .icon(
+        .appIcon(
+            bundleIdentifier: "com.example.workout",
+            size: CGSize(width: 28, height: 28),
+            cornerRadius: 6
+        )
     ),
     trailingContent: .marquee(
         "Set 2 of 4",
         font: .system(size: 12, weight: .medium),
         minDuration: 0.5
     ),
-    progressIndicator: .ring(diameter: 28, strokeWidth: 3, color: .orange),
     accentColor: .orange,
     badgeIcon: .symbol(name: "flame.fill", color: .orange),
     allowsMusicCoexistence: true,
@@ -162,7 +164,7 @@ let activity = AtollLiveActivityDescriptor(
     title: "Downloading",
     subtitle: "update-pkg-v2.dmg",
     leadingIcon: .symbol(name: "arrow.down.circle.fill", color: .blue),
-    trailingContent: .text("45%"),
+    trailingContent: .none,
     progressIndicator: .percentage(color: .blue),
     progress: 0.45,
     accentColor: .blue,
@@ -247,19 +249,18 @@ AtollClient.shared.onActivityDismiss = { activityID in
 .none
 ```
 
-> ℹ️ `leadingContent` accepts the same `AtollTrailingContent` cases, letting you move timers, marquee text, or animations to the left wing when needed.
+> ℹ️ `leadingContent` only accepts `.icon` and `.animation` so the left wing always renders a graphic (symbol, app icon, image, or Lottie) instead of text.
 
 All text-based trailing cases (`.text`, `.marquee`, `.countdownText`) honor an optional `color` override so you can differentiate labels (e.g., red errors, green success) without altering the descriptor-wide accent color.
 
 ### Leading Segment Overrides
 
-By default Atoll renders the `leadingIcon` you provide. Supplying `leadingContent` swaps the entire left wing for any `AtollTrailingContent`, which is useful for timers that need both a badge and a digital countdown.
+By default Atoll renders the `leadingIcon` you provide. Supplying `leadingContent` swaps the entire left wing for another `AtollIconDescriptor` (including `.appIcon` / `.image`) or a Lottie animation when you need richer artwork than the default glyph.
 
 ```swift
 var descriptor = activity
-descriptor.leadingContent = .countdownText(
-    targetDate: targetDate,
-    font: .monospacedDigit(size: 12, weight: .semibold)
+descriptor.leadingContent = .icon(
+    .image(data: artworkPNGData, size: CGSize(width: 28, height: 28), cornerRadius: 6)
 )
 descriptor.badgeIcon = .symbol(name: "flame", color: .orange)
 ```
@@ -278,6 +279,8 @@ inlineDescriptor.centerTextStyle = .inline
 ```
 
 ### Progress Indicators
+
+Progress indicators occupy the right wing whenever `trailingContent == .none`. If you provide any trailing content, the indicator is ignored and validation fails, ensuring the wing always renders a single visual element.
 
 **Ring (circular):**
 ```swift
@@ -586,7 +589,6 @@ class PomodoroManager {
                 targetDate: Date().addingTimeInterval(25 * 60),
                 font: .monospacedDigit(size: 14, weight: .semibold)
             ),
-            progressIndicator: .ring(diameter: 30, strokeWidth: 3),
             accentColor: .purple,
             allowsMusicCoexistence: true
         )
@@ -607,7 +609,7 @@ func showDownload(filename: String, progress: Double) async throws {
         title: "Downloading",
         subtitle: filename,
         leadingIcon: .symbol(name: "arrow.down.circle.fill", color: .blue),
-        trailingContent: .text("\(Int(progress * 100))%"),
+        trailingContent: .none,
         progressIndicator: .bar(width: 110, height: 4),
         progress: progress,
         accentColor: .blue

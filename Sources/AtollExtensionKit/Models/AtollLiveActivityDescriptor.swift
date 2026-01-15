@@ -28,10 +28,10 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
     /// Leading icon (left side)
     public let leadingIcon: AtollIconDescriptor
     
-    /// Trailing content configuration (right side)
+    /// Trailing content configuration (right side). Mutually exclusive with `progressIndicator`.
     public let trailingContent: AtollTrailingContent
     
-    /// Optional progress indicator
+    /// Optional progress indicator shown when `trailingContent == .none`
     public let progressIndicator: AtollProgressIndicator?
     
     /// Progress value (0.0 to 1.0)
@@ -52,7 +52,7 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
     /// Custom metadata (app-specific)
     public let metadata: [String: String]
 
-    /// Optional override for the entire leading segment (left side)
+    /// Optional override for the entire leading segment (left side). Only `.icon` and `.animation` are accepted.
     public let leadingContent: AtollTrailingContent?
 
     /// Controls how the title/subtitle render in the center column
@@ -190,14 +190,25 @@ public struct AtollLiveActivityDescriptor: Codable, Sendable, Hashable, Identifi
     
     /// Validates the descriptor
     public var isValid: Bool {
-        !id.isEmpty &&
-        !bundleIdentifier.isEmpty &&
-        !title.isEmpty &&
-        leadingIcon.isValid &&
-        (badgeIcon?.isValid ?? true) &&
-        trailingContent.isValid &&
-        (leadingContent?.isValid ?? true) &&
-        progress >= 0 && progress <= 1
+        guard !id.isEmpty,
+              !bundleIdentifier.isEmpty,
+              !title.isEmpty,
+              leadingIcon.isValid,
+              trailingContent.isValid,
+              (badgeIcon?.isValid ?? true),
+              progress >= 0,
+              progress <= 1
+        else { return false }
+
+        if let override = leadingContent {
+            guard override.isValid, override.isLeadingCompatible else { return false }
+        }
+
+        if hasRenderableProgressIndicator && trailingContent != .none {
+            return false
+        }
+
+        return true
     }
 
     public init(from decoder: Decoder) throws {
@@ -337,4 +348,35 @@ public enum AtollSneakPeekStyle: String, Codable, Sendable, Hashable {
     
     /// Use the inline presentation with marquee support
     case inline
+}
+
+// MARK: - Internal Helpers
+
+private extension AtollLiveActivityDescriptor {
+    var hasRenderableProgressIndicator: Bool {
+        guard let indicator = progressIndicator else { return false }
+        return indicator.isRenderableInNotch
+    }
+}
+
+private extension AtollProgressIndicator {
+    var isRenderableInNotch: Bool {
+        switch self {
+        case .none:
+            return false
+        default:
+            return true
+        }
+    }
+}
+
+private extension AtollTrailingContent {
+    var isLeadingCompatible: Bool {
+        switch self {
+        case .icon, .animation:
+            return true
+        default:
+            return false
+        }
+    }
 }
