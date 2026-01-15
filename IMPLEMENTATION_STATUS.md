@@ -83,7 +83,7 @@
 - ✅ Bundle ID verification (matches caller's bundle ID)
 - ✅ Data size validation (5MB limits via `ExtensionDescriptorValidator`)
 - ✅ Text length validation (50/100 char limits)
-- ✅ Widget size constraints (500×300 max)
+- ✅ Widget size constraints (640×360 max)
 - ✅ Rate limiting infrastructure (tracks timestamps per bundle)
 - ✅ Capacity enforcement (max activities/widgets per app)
 

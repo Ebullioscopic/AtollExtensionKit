@@ -114,14 +114,15 @@ Extension live activities support **sneak peek** – a temporary HUD that displa
 
 You can also override the HUD copy without changing the main descriptor text by setting `sneakPeekTitle` and `sneakPeekSubtitle`. These optional fields fall back to `title` / `subtitle` when omitted, allowing you to keep the notch copy short while presenting richer messaging inside the sneak peek.
 
-**Important:** When sneak peek is enabled and the notch is closed, the center text (title/subtitle) is **automatically suppressed** from the notch itself to prevent rendering under the physical hardware. All messaging is routed through the sneak peek HUD instead. Because Atoll treats a missing configuration as `.default`, the center column remains blank unless you explicitly opt out with `.disabled`.
+**Important:** Atoll no longer renders extension titles/subtitles inside the closed notch. Even if you disable sneak peek, the center column stays empty so nothing ever collides with the hardware cutout. Always provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the HUD has copy to display.
 
 ### Inline Sneak Peek & Dismissals
 
-- **Inline center text** – Set `centerTextStyle = .inline` (or leave `.inheritUser`) so Atoll can route your title/subtitle into its Sneak Peek HUD, keeping the closed notch clear. Pair inline mode with short trailing content so copy never collides with the hardware cutout.
+- **Inline sneak peek copy** – Provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the HUD has text to display. The notch center stays empty; all messaging flows through the sneak peek HUD.
 - **Leading overrides** – Use `leadingContent` when you need to replace the default icon with another `AtollIconDescriptor` or a bundled Lottie animation. Text-based cases are rejected so the left wing always stays purely visual.
 - **Music coexistence** – Mark `allowsMusicCoexistence = true` for activities that can share space with music playback; Atoll will place your badge on the album art and shift the right wing automatically.
 - **User-driven dismissals** – Register `AtollClient.shared.onActivityDismiss` to learn when someone closes your activity using Atoll’s hover affordance. Shut down background work once this callback fires to avoid recreating the activity immediately.- **Smooth animations** – Activities appear with a subtle spring scale-in animation and fade-out on dismissal. Updates to the same activity ID animate smoothly without jarring transitions.
+When users select inline sneak peek, Atoll mirrors the music HUD layout: your `leadingContent` or `leadingIcon` fills the left wing, the supplied `sneakPeekTitle`/`sneakPeekSubtitle` scroll in the center, and the right wing shows an accent-tinted audio spectrum instead of trailing content. Plan your copy around that fixed layout.
 ### Creating a Live Activity
 
 ```swift
@@ -267,16 +268,7 @@ descriptor.badgeIcon = .symbol(name: "flame", color: .orange)
 
 ### Center Text Styles
 
-`AtollCenterTextStyle` controls how the title/subtitle render in the middle column:
-
-- `.inheritUser` (default) mirrors the user's Sneak Peek style preference inside Atoll.
-- `.standard` forces the classic stacked layout (title above subtitle).
-- `.inline` renders title/subtitle on a single line with marquee support, matching Atoll's inline Sneak Peek layout.
-
-```swift
-var inlineDescriptor = activity
-inlineDescriptor.centerTextStyle = .inline
-```
+`AtollCenterTextStyle` remains part of the data model for forward compatibility, but the Atoll host ignores it for extension live activities—the center column stays blank while the closed notch is visible. Use sneak peek text instead of relying on this property for active layouts.
 
 ### Progress Indicators
 
@@ -330,12 +322,28 @@ let widget = AtollLockScreenWidgetDescriptor(
     position: .init(alignment: .leading, verticalOffset: -80, horizontalOffset: 60),
     size: CGSize(width: 220, height: 110),
     material: .frosted,
+    appearance: .init(
+        tintColor: .white,
+        tintOpacity: 0.12,
+        enableGlassHighlight: true,
+        contentInsets: .init(top: 14, leading: 18, bottom: 14, trailing: 18),
+        border: .init(color: .white, opacity: 0.18, width: 1),
+        shadow: .init(color: .black, opacity: 0.35, radius: 26, offset: CGSize(width: 0, height: -10))
+    ),
     cornerRadius: 18,
     content: [
         .icon(.symbol(name: "chart.line.uptrend.xyaxis", color: .green)),
         .text("AAPL", font: .system(size: 16, weight: .semibold), color: .white),
         .text("$175.43", font: .system(size: 22, weight: .bold), color: .green),
-        .text("+2.3%", font: .system(size: 14, weight: .medium), color: .green, alignment: .trailing)
+        .text("+2.3%", font: .system(size: 14, weight: .medium), color: .green, alignment: .trailing),
+        .webView(
+            .init(
+                html: "<div class=\"sparkline\"></div><script>renderSparkline()</script>",
+                preferredHeight: 90,
+                isTransparent: true,
+                allowLocalhostRequests: false
+            )
+        )
     ],
     accentColor: .accent,
     dismissOnUnlock: true,
@@ -350,7 +358,7 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 - `.inline` – single-line layout similar to Atoll’s weather widgets (default size: 200×48 pt)
 - `.circular` – compact circular badges for gauges or progress indicators (default: 100×100 pt)
 - `.card` – rectangular surface for richer compositions (default: 220×120 pt)
-- `.custom` – opt-in when you want full control over the size (defaults to 150×80 pt; still clamped to 500×300 pt)
+- `.custom` – opt-in when you want full control over the size (defaults to 150×80 pt; still clamped to 640×360 pt)
 
 ### Content Elements
 
@@ -389,15 +397,42 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 .divider(color: .gray, thickness: 1)
 ```
 
+**Web View:**
+```swift
+.webView(
+    .init(
+        html: "<div class=\"now-playing\">…</div>",
+        preferredHeight: 110,
+        isTransparent: true,
+        allowLocalhostRequests: true
+    )
+)
+```
+
 ### Lock Screen Materials & Positioning
 
-- **Alignment-aware offsets** – `AtollWidgetPosition` accepts an alignment (`leading`, `center`, `trailing`) plus `verticalOffset` (±200 pt) and `horizontalOffset` (±300 pt). Use these fields instead of screen coordinates so widgets remain notch-safe across displays.
-- **Material presets** – `AtollWidgetMaterial` includes `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, and `.clear`. Pair liquid material with larger corner radii (≥20 pt) to mirror Atoll’s glass overlays.
-- **Deterministic sizing** – Provide a custom `size` when you need dimensions outside the layout style defaults. The SDK clamps all widgets to 500×300 pt to avoid overlap.
+- **Alignment-aware offsets** – `AtollWidgetPosition` accepts an alignment (`leading`, `center`, `trailing`) plus `verticalOffset` (±400 pt) and `horizontalOffset` (±600 pt). Use these fields instead of screen coordinates so widgets remain notch-safe across displays. Set `clampMode` to `.relaxed` or `.unconstrained` when you need to escape the default safe-area margins.
+- **Material presets** – `AtollWidgetMaterial` includes `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, and `.clear`. Pair liquid material with larger corner radii (≥20 pt) to mirror Atoll’s glass overlays and toggle `appearance.enableGlassHighlight` to request the effect even if you choose a different base material.
+- **Deterministic sizing** – Provide a custom `size` when you need dimensions outside the layout style defaults. The SDK clamps all widgets to 640×360 pt to avoid overlap.
+
+### Appearance Overrides
+
+- **Tint overlays** – `appearance.tintColor` and `tintOpacity` add a translucent color wash above frosted/liquid materials without mutating the descriptor-wide accent.
+- **Content insets** – Supply `appearance.contentInsets` (top/leading/bottom/trailing) to override the default padding and keep text/gauges perfectly aligned with your design system.
+- **Borders & shadows** – Use `AtollWidgetBorderStyle` / `AtollWidgetShadowStyle` to specify custom borders and drop shadows. When `appearance.border` is omitted, Atoll falls back to a 1 pt white stroke (4% opacity).
+- **Glass accents** – Enable `appearance.enableGlassHighlight` to request the macOS Liquid Glass treatment wherever available. On older systems the view gracefully falls back to `.regularMaterial`.
+
+### Transparent Web Content
+
+- **Sandboxed WKWebView** – `.webView` renders inline HTML/CSS/JS (max 20 KB) inside a mouse-disabled WKWebView so you can layer custom shaders, charts, or canvas effects over Atoll’s background.
+- **Network policy** – Navigation is limited to `about:` / `data:` URLs unless you set `allowLocalhostRequests = true`, which whitelists `http://localhost` and `http://127.0.0.1` for dev servers. All other hosts are blocked for safety.
+- **Visual control** – `isTransparent` clears the view’s background so only your markup appears. Provide `backgroundColor` when you need an explicit fill, and use `maximumContentWidth` to clamp how wide the surface can stretch.
+- **Sizing** – `preferredHeight` drives the web view’s height (clamped to 40–420 pt). Combine it with layout `size` + padding to keep the chrome balanced.
 
 ### Widget Content Tips
 
 - **Mix and match elements** – Compose `.text`, `.icon`, `.progress`, `.graph`, `.gauge`, `.spacer`, and `.divider` entries to create layered widgets without embedding executable UI code.
+- **Bring your own chrome** – Use `.webView` for transparent HTML/CSS/JS overlays (think vector gradients, live charts, or sparkline canvases) while keeping gestures disabled and respecting Atoll’s security policy.
 - **Use gauges for live metrics** – `.gauge` outputs circular or linear indicators with independent min/max ranges, perfect for weather, battery, or fitness statistics.
 - **Respect color limits** – Stick to `AtollColorDescriptor` values so Atoll can enforce monochrome/high-contrast modes on colorful wallpapers.
 - **Keep it light** – Each widget supports up to 20 content elements. Prefer summaries over dense graphs when possible to minimize rendering cost.
@@ -503,12 +538,13 @@ do {
 
 | Property | Limit | Notes |
 |----------|-------|-------|
-| Widget width | 500 pt max | Enforced |
-| Widget height | 300 pt max | Enforced |
+| Widget width | 640 pt max | Enforced |
+| Widget height | 360 pt max | Enforced |
 | Content elements | 20 max | Performance |
 | Text length | 100 chars | Per element |
 | Image data | 5 MB | Per icon |
 | Graph data points | 100 max | Performance |
+| Web content HTML | 20 KB | `.webView` payload |
 
 ### Validation Errors
 
