@@ -14,6 +14,7 @@
 🔒 **Lock Screen Widgets** - Show custom widgets on the macOS lock screen  
 🫧 **Sneak Peek Alignment** - Route titles/subtitles into Atoll's inline HUD so text never hides under the notch with configurable duration and modes  
 🎨 **Full Customization** - Icons, colors, progress indicators, leading overrides, marquee/countdown trailing text, center styles, and sneak peek configuration  
+🪟 **Transparent Web Widgets** - Liquid glass materials, custom borders/shadows, and sandboxed transparent web views for bespoke lock screen chrome  
 ⚡ **XPC Communication** - Fast, secure inter-process communication  
 🔐 **Permission System** - User-controlled authorization in Atoll Settings  
 📊 **Priority Management** - Smart conflict resolution when multiple activities compete  
@@ -154,12 +155,26 @@ let widget = AtollLockScreenWidgetDescriptor(
     position: .init(alignment: .center, verticalOffset: 120, horizontalOffset: 0),
     size: CGSize(width: 240, height: 110),
     material: .liquid,
+    appearance: .init(
+        tintColor: .white,
+        tintOpacity: 0.1,
+        enableGlassHighlight: true,
+        contentInsets: .init(top: 16, leading: 20, bottom: 16, trailing: 20),
+        shadow: .init(color: .black, opacity: 0.35, radius: 32, offset: CGSize(width: 0, height: -12))
+    ),
     cornerRadius: 20,
     content: [
         .icon(.symbol(name: "cloud.sun.fill", color: .yellow)),
         .text("San Francisco", font: .system(size: 16, weight: .semibold), color: .white),
         .text("72°F", font: .system(size: 28, weight: .bold), color: .white, alignment: .trailing),
-        .gauge(value: 0.72, minValue: 0, maxValue: 1, style: .circular, color: .white)
+        .gauge(value: 0.72, minValue: 0, maxValue: 1, style: .circular, color: .white),
+        .webView(
+            .init(
+                html: "<div class=\"forecast\"></div>",
+                preferredHeight: 80,
+                isTransparent: true
+            )
+        )
     ],
     accentColor: .accent,
     dismissOnUnlock: true,
@@ -171,9 +186,11 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 
 ### Lock Screen Materials & Positioning
 
-- **Alignment-aware offsets** – `AtollWidgetPosition` clamps horizontal offsets to ±300 pt and vertical offsets to ±200 pt relative to the requested alignment (`leading`, `center`, `trailing`). Use these fields instead of hard-coded screen coordinates so widgets stay notch-safe on multi-display setups.
-- **Material presets** – Choose from `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, or `.clear` via `AtollWidgetMaterial`. Liquid material pairs well with corner radii ≥ 20 pt to mirror Atoll’s “glass” overlays.
-- **Deterministic sizing** – Supply an explicit `size` when you need dimensions outside each layout style’s default (e.g., taller inline widgets). The SDK automatically clamps to the 500×300 pt safety bounds.
+- **Alignment-aware offsets** – `AtollWidgetPosition` clamps horizontal offsets to ±600 pt and vertical offsets to ±400 pt relative to the requested alignment (`leading`, `center`, `trailing`). Set `clampMode` to `.relaxed` or `.unconstrained` to loosen the default safe-area constraints when you need full-bleed layouts.
+- **Material presets** – Choose from `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, or `.clear` via `AtollWidgetMaterial`. Pair `.liquid` or `appearance.enableGlassHighlight` with rounded corners for true “liquid glass” styling.
+- **Deterministic sizing** – Supply an explicit `size` when you need dimensions outside each layout style’s default (e.g., taller inline widgets). The SDK automatically clamps to 640×360 pt to keep overlays separated.
+
+Use `appearance` to override padding, borders, or shadows and `.webView` when you need a sandboxed HTML/CSS/JS layer (transparent by default, localhost-only networking when explicitly enabled).
 
 ### Widget Content Tips
 
@@ -294,7 +311,7 @@ When multiple activities compete for space, **priority** determines visibility:
 | Live activity title | 50 characters |
 | Live activity subtitle | 100 characters |
 | Icon image data | 5 MB |
-| Lock screen widget size | 500×300 pt max |
+| Lock screen widget size | 640×360 pt max |
 | Widget content elements | 20 max |
 | Activity duration | 24 hours |
 
