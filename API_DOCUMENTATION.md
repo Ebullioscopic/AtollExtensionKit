@@ -14,11 +14,12 @@ AtollExtensionKit enables third-party applications to display custom live activi
 2. [Authorization](#authorization)
 3. [Live Activities](#live-activities)
 4. [Lock Screen Widgets](#lock-screen-widgets)
-5. [Priority System](#priority-system)
-6. [Best Practices](#best-practices)
-7. [Size Limits & Validation](#size-limits--validation)
-8. [Error Handling](#error-handling)
-9. [Examples](#examples)
+5. [Notch Experiences](#notch-experiences)
+6. [Priority System](#priority-system)
+7. [Best Practices](#best-practices)
+8. [Size Limits & Validation](#size-limits--validation)
+9. [Error Handling](#error-handling)
+10. [Examples](#examples)
 
 ---
 
@@ -447,6 +448,140 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 
 ---
 
+## Notch Experiences
+
+`AtollNotchExperienceDescriptor` lets you surface rich, structured content directly inside Atoll’s Dynamic Island. A descriptor can render:
+
+- A **standard notch tab** that sits alongside built-in tabs (Timers, Shelf, etc.)
+- An optional **minimalistic override** that replaces the compact music UI while the user’s minimalistic mode is active
+
+Both surfaces share the same declarative building blocks as lock screen widgets, so SDK clients never send executable UI code—only structured content sections, optional icons, and sandboxed web payloads.
+
+### Overview
+
+- Requires the user to enable **Extensions → Allow extension notch experiences** inside Atoll Settings. Users can further toggle tabs, minimalistic overrides, and interactive web views individually; always provide a fallback path in your app.
+- Capacity is limited (default: 2 simultaneous experiences). Submit only when there is meaningful information to show and dismiss promptly when stale.
+- Tabs and minimalistic overrides are independent. You can ship one, the other, or both in the same descriptor.
+- Content is rendered by Atoll; titles and copy never sit under the physical notch. Sneak Peek HUD handles headline text when tabs appear.
+
+### Workflow
+
+1. **Authorize** – Request authorization just like live activities. Notch experiences honor the same permission scope.
+2. **Assemble the descriptor** – Populate the required metadata plus either `tab`, `minimalistic`, or both configurations.
+3. **Validate locally** – Call `descriptor.isValid` or `ExtensionDescriptorValidator.validate(_:)` in your tests to catch layout/length issues before hitting the service.
+4. **Present** – `try await AtollClient.shared.presentNotchExperience(descriptor)` queues the experience. Use a stable `id` per logical surface so updates replace the existing tab instead of creating duplicates.
+5. **Update** – Re-send the descriptor with new content via `updateNotchExperience(_:)`. Prefer incremental updates over dismiss/re-present to keep animations smooth.
+6. **Dismiss** – Call `dismissNotchExperience(experienceID:)` when the session ends, or respond to `onNotchExperienceDismiss` callbacks if the user revokes it from Atoll.
+7. **Fallbacks** – When the user disables tabs, minimalistic overrides, or interactive web content, degrade gracefully inside your own UI instead of re-presenting.
+
+### Descriptor Structure
+
+Top-level fields mirror other Atoll descriptors:
+
+- `id` and `bundleIdentifier` uniquely identify your experience.
+- `priority` determines ordering relative to other extension tabs (same enum as live activities).
+- `accentColor` tints dividers, highlights, and fallback UI elements.
+- `metadata` carries up to 32 key/value pairs for diagnostics (never rendered to the user).
+- `tab` / `minimalistic` hold their respective configurations. At least one must be present.
+
+### Tab Experiences (`TabConfiguration`)
+
+- **Presentation** – Tabs appear in Atoll’s Tab bar when `Enable extension notch tabs` is on. Users tap the tab to show your content; Atoll hides it automatically when the descriptor disappears.
+- **Layout** – Provide up to 6 `AtollNotchContentSection` entries. Each section can be a `stack`, `columns`, or `metrics` layout and accepts the same `AtollWidgetContentElement` payloads as lock screen widgets (text, icons, graphs, gauges, progress, spacers, dividers, web views).
+- **Sizing** – `preferredHeight` suggests how tall the tab should be (clamped to 160–420 pt). Atoll ensures the size stays within the notch frame.
+- **Branding** – Use `iconSymbolName`, `badgeIcon`, and `appearance` to align with your app’s look. Keep labels short for accessibility.
+- **Footnotes** – Optional footnote text (≤140 characters) appears beneath your content stack for legal copy or instructions.
+- **Interactive web content** – Supply `webContent` plus `allowWebInteraction = true` when your tab needs a sandboxed WKWebView with keyboard/mouse input. Atoll rejects descriptors that contain web content if the user disabled **Allow interactive web content**.
+
+### Minimalistic Replacements (`MinimalisticConfiguration`)
+
+- **Use case** – Override the compact minimalistic music layout with extension-driven content while the user’s minimalistic mode is active.
+- **Copy** – Optional `headline` (≤80 chars) and `subtitle` (≤120 chars) sit above your sections, mirroring the music title/subtitle area without touching the physical notch.
+- **Sections** – Provide up to 3 sections with the same content elements as tabs. Minimalistic sections should remain lightweight to avoid overcrowding.
+- **Web content** – Optional `webContent` renders a sandboxed view sized automatically by Atoll. It respects the same global interactive web toggle as tabs.
+- **Layout hints** – `layout` communicates the general form factor (`.stack`, `.metrics`, `.custom`) so Atoll can adjust padding. Use `hidesMusicControls` if you need the music buttons removed entirely.
+
+### Content Sections & Elements
+
+- `AtollNotchContentSection` limits you to 6 elements per section. Each element is one of the existing widget building blocks (`.text`, `.icon`, `.progress`, `.graph`, `.gauge`, `.webView`, `.divider`, `.spacer`).
+- Titles (≤80 chars) and subtitles (≤160 chars) are optional per section. Use them sparingly to keep the notch readable.
+- Because these types are `Codable`, you can reuse existing widget-building utilities when assembling your notch descriptors.
+
+### Interactive Web Content Policy
+
+- HTML payloads share the lock screen widget limits (20 KB max, inline assets only).
+- Navigation remains limited to `about:` / `data:` unless you explicitly allow localhost inside `AtollWidgetWebContentDescriptor` (useful for pointing at a dev server during testing).
+- Set `allowWebInteraction = true` only when you genuinely need keyboard or mouse input. Tabs default to read-only web views.
+- Atoll rejects descriptors that include web content when the user disables **Allow interactive web content** or when system security policies block the payload. Always render equivalent data using native elements whenever possible.
+
+### Example
+
+```swift
+let descriptor = AtollNotchExperienceDescriptor(
+    id: "finance-dashboard",
+    priority: .high,
+    accentColor: .init(red: 0.18, green: 0.65, blue: 0.94),
+    tab: .init(
+        title: "Finance",
+        iconSymbolName: "chart.pie.fill",
+        preferredHeight: 260,
+        sections: [
+            .init(
+                id: "positions",
+                title: "Positions",
+                layout: .columns,
+                elements: [
+                    .text("AAPL", font: .system(size: 16, weight: .semibold), color: .white),
+                    .text("$182.44", font: .monospacedDigit(size: 16, weight: .medium), color: .green),
+                    .gauge(value: 0.72, minValue: 0, maxValue: 1, style: .circular, color: .green),
+                    .divider(color: .white, thickness: 1)
+                ]
+            )
+        ],
+        webContent: .init(
+            html: "<canvas id=\"spark\"></canvas><script>renderSpark()</script>",
+            preferredHeight: 120,
+            allowLocalhostRequests: false,
+            isTransparent: true
+        ),
+        allowWebInteraction: false
+    ),
+    minimalistic: .init(
+        headline: "Portfolio",
+        subtitle: "Daily change +$1,820",
+        sections: [
+            .init(
+                id: "overview",
+                layout: .metrics,
+                elements: [
+                    .text("Top mover", font: .system(size: 13, weight: .regular), color: .white),
+                    .text("+3.4%", font: .monospacedDigit(size: 15, weight: .semibold), color: .green)
+                ]
+            )
+        ],
+        hidesMusicControls: true
+    )
+)
+
+try await AtollClient.shared.presentNotchExperience(descriptor)
+```
+
+### API Surface
+
+```swift
+try await AtollClient.shared.presentNotchExperience(descriptor)
+try await AtollClient.shared.updateNotchExperience(descriptor)
+try await AtollClient.shared.dismissNotchExperience(experienceID: descriptor.id)
+
+AtollClient.shared.onNotchExperienceDismiss(experienceID: descriptor.id) {
+    // Cleanup work / update UI
+}
+```
+
+Use dismissal callbacks to stop background work when the user closes your tab from Atoll. If you re-present immediately, Atoll treats it as a new submission and re-applies validation/capacity checks.
+
+---
+
 ## Priority System
 
 When multiple live activities compete for space, priority determines visibility:
@@ -519,6 +654,10 @@ do {
 - Provide in-app settings to disable live activities
 - Leave `centerTextStyle` at `.inheritUser` whenever possible so the view respects the user's Sneak Peek preference; only force `.inline` or `.standard` when your layout requires a specific treatment.
 
+### 8. **Degrade when notch surfaces are disabled**
+- Users can toggle notch experiences, extension tabs, minimalistic overrides, and interactive web content independently inside Atoll. Detect `AtollExtensionKitError.invalidDescriptor` / `AtollExtensionKitError.notAuthorized` responses and keep rendering equivalent information inside your own UI instead of looping on retries.
+- Avoid presenting placeholder tabs just to reserve capacity. Submit descriptors only when you have live data to show and dismiss them when finished.
+
 ---
 
 ## Size Limits & Validation
@@ -545,6 +684,22 @@ do {
 | Image data | 5 MB | Per icon |
 | Graph data points | 100 max | Performance |
 | Web content HTML | 20 KB | `.webView` payload |
+
+### Notch Experiences
+
+| Property | Limit | Notes |
+|----------|-------|-------|
+| Concurrent experiences | 2 global (default) | Host-enforced capacity |
+| Tab sections | 6 max | Each section must be valid |
+| Section elements | 6 max | Shares rules with widget elements |
+| Tab preferred height | 160–420 pt | Clamped by host |
+| Tab footnote | 140 characters | Optional |
+| Minimalistic sections | 3 max | Keep content concise |
+| Minimalistic headline | 80 characters | Optional |
+| Minimalistic subtitle | 120 characters | Optional |
+| Section title | 80 characters | Optional |
+| Section subtitle | 160 characters | Optional |
+| Web content HTML | 20 KB | Same limits as widgets |
 
 ### Validation Errors
 
