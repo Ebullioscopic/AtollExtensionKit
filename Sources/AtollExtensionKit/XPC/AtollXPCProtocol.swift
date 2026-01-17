@@ -50,6 +50,22 @@ import Foundation
     /// - Parameter bundleIdentifier: App's bundle identifier
     /// - Parameter reply: Callback with success/failure
     func dismissLockScreenWidget(widgetID: String, bundleIdentifier: String, reply: @escaping (Bool, Error?) -> Void)
+
+    /// Present a notch experience.
+    /// - Parameter descriptorData: Notch descriptor (as Data)
+    /// - Parameter reply: Callback with success/failure
+    func presentNotchExperience(descriptorData: Data, reply: @escaping (Bool, Error?) -> Void)
+
+    /// Update an existing notch experience.
+    /// - Parameter descriptorData: Updated descriptor (as Data)
+    /// - Parameter reply: Callback with success/failure
+    func updateNotchExperience(descriptorData: Data, reply: @escaping (Bool, Error?) -> Void)
+
+    /// Dismiss a notch experience.
+    /// - Parameter experienceID: Experience identifier
+    /// - Parameter bundleIdentifier: App bundle identifier
+    /// - Parameter reply: Callback with success/failure
+    func dismissNotchExperience(experienceID: String, bundleIdentifier: String, reply: @escaping (Bool, Error?) -> Void)
     
     /// Get Atoll version information.
     /// - Parameter reply: Callback with version string
@@ -69,4 +85,8 @@ import Foundation
     /// Notifies client that a widget was dismissed.
     /// - Parameter widgetID: The dismissed widget ID
     func widgetDidDismiss(widgetID: String)
+
+    /// Notifies client that a notch experience was dismissed.
+    /// - Parameter experienceID: The dismissed notch identifier
+    func notchExperienceDidDismiss(experienceID: String)
 }

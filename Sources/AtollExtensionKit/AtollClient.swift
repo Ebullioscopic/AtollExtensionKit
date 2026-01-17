@@ -17,6 +17,7 @@ public final class AtollClient: @unchecked Sendable {
     private var authorizationCallbacks: [(Bool) -> Void] = []
     private var activityDismissalHandlers: [String: () -> Void] = [:]
     private var widgetDismissalHandlers: [String: () -> Void] = [:]
+    private var notchDismissalHandlers: [String: () -> Void] = [:]
     
     /// Initialize a new AtollClient instance.
     /// For most use cases, use `AtollClient.shared` instead.
@@ -148,6 +149,44 @@ public final class AtollClient: @unchecked Sendable {
     public func onWidgetDismiss(widgetID: String, callback: @escaping () -> Void) {
         widgetDismissalHandlers[widgetID] = callback
     }
+
+    // MARK: - Notch Experiences
+
+    /// Present a notch experience (standard + minimalistic layouts).
+    /// - Parameter descriptor: The notch descriptor
+    public func presentNotchExperience(_ descriptor: AtollNotchExperienceDescriptor) async throws {
+        guard descriptor.isValid else {
+            throw AtollExtensionKitError.invalidDescriptor(reason: "Notch descriptor validation failed")
+        }
+
+        let isAuthorized = try await checkAuthorization()
+        guard isAuthorized else {
+            throw AtollExtensionKitError.notAuthorized
+        }
+
+        try await connectionManager.presentNotchExperience(descriptor)
+    }
+
+    /// Update a notch experience.
+    /// - Parameter descriptor: Updated descriptor (must match ID)
+    public func updateNotchExperience(_ descriptor: AtollNotchExperienceDescriptor) async throws {
+        guard descriptor.isValid else {
+            throw AtollExtensionKitError.invalidDescriptor(reason: "Notch descriptor validation failed")
+        }
+
+        try await connectionManager.updateNotchExperience(descriptor)
+    }
+
+    /// Dismiss a notch experience.
+    /// - Parameter experienceID: Identifier of the notch experience
+    public func dismissNotchExperience(experienceID: String) async throws {
+        try await connectionManager.dismissNotchExperience(experienceID: experienceID)
+    }
+
+    /// Register a callback for notch experience dismissal events.
+    public func onNotchExperienceDismiss(experienceID: String, callback: @escaping () -> Void) {
+        notchDismissalHandlers[experienceID] = callback
+    }
     
     // MARK: - Private Helpers
     
@@ -169,6 +208,13 @@ public final class AtollClient: @unchecked Sendable {
             Task { @MainActor in
                 self?.widgetDismissalHandlers[widgetID]?()
                 self?.widgetDismissalHandlers.removeValue(forKey: widgetID)
+            }
+        }
+
+        connectionManager.onNotchExperienceDismiss = { [weak self] experienceID in
+            Task { @MainActor in
+                self?.notchDismissalHandlers[experienceID]?()
+                self?.notchDismissalHandlers.removeValue(forKey: experienceID)
             }
         }
     }

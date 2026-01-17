@@ -17,6 +17,7 @@ final class AtollXPCConnectionManager: NSObject, @unchecked Sendable {
     var onAuthorizationChange: ((Bool) -> Void)?
     var onActivityDismiss: ((String) -> Void)?
     var onWidgetDismiss: ((String) -> Void)?
+    var onNotchExperienceDismiss: ((String) -> Void)?
     
     private var bundleIdentifier: String {
         Bundle.main.bundleIdentifier ?? "unknown"
@@ -233,6 +234,59 @@ final class AtollXPCConnectionManager: NSObject, @unchecked Sendable {
             }
         }
     }
+
+    func presentNotchExperience(_ descriptor: AtollNotchExperienceDescriptor) async throws {
+        let data = try JSONEncoder().encode(descriptor)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            do {
+                let service = try getService()
+                service.presentNotchExperience(descriptorData: data) { success, error in
+                    if success {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: error ?? AtollExtensionKitError.unknown("Failed to present notch experience"))
+                    }
+                }
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    func updateNotchExperience(_ descriptor: AtollNotchExperienceDescriptor) async throws {
+        let data = try JSONEncoder().encode(descriptor)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            do {
+                let service = try getService()
+                service.updateNotchExperience(descriptorData: data) { success, error in
+                    if success {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: error ?? AtollExtensionKitError.unknown("Failed to update notch experience"))
+                    }
+                }
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    func dismissNotchExperience(experienceID: String) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            do {
+                let service = try getService()
+                service.dismissNotchExperience(experienceID: experienceID, bundleIdentifier: bundleIdentifier) { success, error in
+                    if success {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: error ?? AtollExtensionKitError.unknown("Failed to dismiss notch experience"))
+                    }
+                }
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
     
     deinit {
         connection?.invalidate()
@@ -252,5 +306,9 @@ extension AtollXPCConnectionManager: AtollXPCClientProtocol {
     
     func widgetDidDismiss(widgetID: String) {
         onWidgetDismiss?(widgetID)
+    }
+    
+    func notchExperienceDidDismiss(experienceID: String) {
+        onNotchExperienceDismiss?(experienceID)
     }
 }
