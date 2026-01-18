@@ -41,6 +41,15 @@ dependencies: [
 import AtollExtensionKit
 ```
 
+### Run the Samples
+
+Two sample targets under [`Samples`](Samples) mirror the workflows described in this document:
+
+- `Samples/AtollXcodeSample` is a Swift Package CLI target. Run `swift run --package-path Samples/AtollXcodeSample` to print the SDK version, build a descriptor, and validate that `AtollClient.shared` is reachable—ideal for sanity-checking your toolchain before touching UI code.
+- `Samples/AtollXcodeSampleApp` is a SwiftUI macOS app. Open `AtollXcodeSampleApp.xcodeproj`, build, and run to see the descriptor validator and client ping buttons we use when testing inline Sneak Peek download/icon-trailing demos. Edit `Sources/App/ContentView.swift` to swap in your own descriptors (e.g., countdown text + progress indicator) and observe how Atoll renders them.
+
+Use these projects as living documentation: copy/paste the descriptor snippets from this guide into the sample app to verify inline Sneak Peek colors, trailing bars, and badge sizes before integrating them into your product.
+
 ### Check if Atoll is Installed
 
 ```swift
@@ -117,13 +126,15 @@ You can also override the HUD copy without changing the main descriptor text by 
 
 **Important:** Atoll no longer renders extension titles/subtitles inside the closed notch. Even if you disable sneak peek, the center column stays empty so nothing ever collides with the hardware cutout. Always provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the HUD has copy to display.
 
+Inline sneak peek mirrors the reminder/timer live activity layout: your `leadingContent` or `leadingIcon` occupies the left wing, the center seam remains blank for notch safety, and the trailing wing renders either your `trailingContent` or `progressIndicator` using the same ring/countdown sizing logic as the built-in reminder and timer views. Plan for concise glyphs or progress accents instead of center text whenever the user selects inline sneak peek.
+
 ### Inline Sneak Peek & Dismissals
 
-- **Inline sneak peek copy** – Provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the HUD has text to display. The notch center stays empty; all messaging flows through the sneak peek HUD.
+- **Inline sneak peek copy** – Provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the reminder-style HUD has text to display. The inline layout keeps the notch center empty, so this HUD is the only surface that shows copy.
 - **Leading overrides** – Use `leadingContent` when you need to replace the default icon with another `AtollIconDescriptor` or a bundled Lottie animation. Text-based cases are rejected so the left wing always stays purely visual.
 - **Music coexistence** – Mark `allowsMusicCoexistence = true` for activities that can share space with music playback; Atoll will place your badge on the album art and shift the right wing automatically.
 - **User-driven dismissals** – Register `AtollClient.shared.onActivityDismiss` to learn when someone closes your activity using Atoll’s hover affordance. Shut down background work once this callback fires to avoid recreating the activity immediately.- **Smooth animations** – Activities appear with a subtle spring scale-in animation and fade-out on dismissal. Updates to the same activity ID animate smoothly without jarring transitions.
-When users select inline sneak peek, Atoll mirrors the music HUD layout: your `leadingContent` or `leadingIcon` fills the left wing, the supplied `sneakPeekTitle`/`sneakPeekSubtitle` scroll in the center, and the right wing shows an accent-tinted audio spectrum instead of trailing content. Plan your copy around that fixed layout.
+Inline sneak peek now follows the reminder/timer live activity layout: the left wing shows your `leadingContent`, the center remains blank, and the right wing renders either your `trailingContent` or `progressIndicator`. Rings, digital countdowns, and bar indicators reuse the same sizing rules as reminder/timer, so the HUD stays balanced regardless of which wing content you choose.
 ### Creating a Live Activity
 
 ```swift

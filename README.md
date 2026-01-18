@@ -365,14 +365,19 @@ AtollClient.shared.onWidgetDismiss = { widgetID in
 
 ## Sample Apps
 
-Check out example integrations:
+This repository ships with the same harness we use to verify inline Sneak Peek, download/icon-trailing demos, and badge sizing tweaks. Both projects live under [`Samples`](Samples):
 
-- **PomodoroTimer** - Focus timer with live activity
-- **DownloadManager** - Progress tracking in notch
-- **CryptoTracker** - Lock screen price widget
-- **WorkoutTracker** - Exercise session with heart rate
+1. **AtollXcodeSample** (Swift Package CLI)
+    - Path: `Samples/AtollXcodeSample`
+    - Run `swift run --package-path Samples/AtollXcodeSample`.
+    - Prints the SDK version, builds a minimal `AtollLiveActivityDescriptor`, and confirms validation succeeds—perfect for quickly checking that your toolchain resolves the package and can talk to `AtollClient.shared` without spinning up a UI.
 
-*(Coming soon in `Examples/` directory)*
+2. **AtollXcodeSampleApp** (SwiftUI macOS app)
+    - Path: `Samples/AtollXcodeSampleApp`
+    - Open `AtollXcodeSampleApp.xcodeproj`, build, and run.
+    - The window contains buttons for validating the inline Sneak Peek descriptor, pinging the shared client, and tailing log output. Replace the descriptor inside `Sources/App/ContentView.swift` with your own trailing content (download progress bar, icon-trailing layout, etc.) to reproduce the same scenarios we use when testing inline Sneak Peek colors/bars.
+
+Use these samples as blueprints: duplicate them to experiment with authorization, inline HUD overrides, or badge sizing before adopting the code in production.
 
 ---
 
