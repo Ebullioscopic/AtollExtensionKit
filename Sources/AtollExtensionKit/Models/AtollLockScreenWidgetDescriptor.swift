@@ -208,6 +208,26 @@ public enum AtollWidgetMaterial: String, Codable, Sendable, Hashable {
     case clear
 }
 
+/// Describes a specific Apple liquid-glass variant (0–19).
+public struct AtollLiquidGlassVariant: Codable, Sendable, Hashable {
+    public static let supportedRange = 0...19
+
+    /// Raw variant value (0–19). Values outside this range are clamped.
+    public let rawValue: Int
+
+    public init(_ value: Int) {
+        if value < Self.supportedRange.lowerBound {
+            self.rawValue = Self.supportedRange.lowerBound
+        } else if value > Self.supportedRange.upperBound {
+            self.rawValue = Self.supportedRange.upperBound
+        } else {
+            self.rawValue = value
+        }
+    }
+
+    var isValid: Bool { Self.supportedRange.contains(rawValue) }
+}
+
 /// Content element within a widget.
 public enum AtollWidgetContentElement: Codable, Sendable, Hashable {
     /// Text label
@@ -267,6 +287,8 @@ public struct AtollWidgetAppearanceOptions: Codable, Sendable, Hashable {
     public let contentInsets: AtollWidgetContentInsets?
     public let border: AtollWidgetBorderStyle?
     public let shadow: AtollWidgetShadowStyle?
+    /// Optional Apple liquid-glass variant to render when `material == .liquid`.
+    public let liquidGlassVariant: AtollLiquidGlassVariant?
 
     public init(
         tintColor: AtollColorDescriptor? = nil,
@@ -274,7 +296,8 @@ public struct AtollWidgetAppearanceOptions: Codable, Sendable, Hashable {
         enableGlassHighlight: Bool = false,
         contentInsets: AtollWidgetContentInsets? = nil,
         border: AtollWidgetBorderStyle? = nil,
-        shadow: AtollWidgetShadowStyle? = nil
+        shadow: AtollWidgetShadowStyle? = nil,
+        liquidGlassVariant: AtollLiquidGlassVariant? = nil
     ) {
         self.tintColor = tintColor
         self.tintOpacity = min(max(tintOpacity, 0), 1)
@@ -282,10 +305,11 @@ public struct AtollWidgetAppearanceOptions: Codable, Sendable, Hashable {
         self.contentInsets = contentInsets
         self.border = border
         self.shadow = shadow
+        self.liquidGlassVariant = liquidGlassVariant
     }
 
     var isValid: Bool {
-        (border?.isValid ?? true) && (shadow?.isValid ?? true)
+        (border?.isValid ?? true) && (shadow?.isValid ?? true) && (liquidGlassVariant?.isValid ?? true)
     }
 }
 

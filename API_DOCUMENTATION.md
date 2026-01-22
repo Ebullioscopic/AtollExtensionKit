@@ -46,9 +46,9 @@ import AtollExtensionKit
 Two sample targets under [`Samples`](Samples) mirror the workflows described in this document:
 
 - `Samples/AtollXcodeSample` is a Swift Package CLI target. Run `swift run --package-path Samples/AtollXcodeSample` to print the SDK version, build a descriptor, and validate that `AtollClient.shared` is reachable—ideal for sanity-checking your toolchain before touching UI code.
-- `Samples/AtollXcodeSampleApp` is a SwiftUI macOS app. Open `AtollXcodeSampleApp.xcodeproj`, build, and run to see the descriptor validator and client ping buttons we use when testing inline Sneak Peek download/icon-trailing demos. Edit `Sources/App/ContentView.swift` to swap in your own descriptors (e.g., countdown text + progress indicator) and observe how Atoll renders them.
+- `Samples/AtollXcodeSampleApp` is a SwiftUI macOS app. Open `AtollXcodeSampleApp.xcodeproj`, build, and run to see the descriptor validator and client ping buttons we use when testing Sneak Peek copy, trailing content, and badge sizing. Edit `Sources/App/ContentView.swift` to swap in your own descriptors (e.g., countdown text + progress indicator) and observe how Atoll renders them.
 
-Use these projects as living documentation: copy/paste the descriptor snippets from this guide into the sample app to verify inline Sneak Peek colors, trailing bars, and badge sizes before integrating them into your product.
+Use these projects as living documentation: copy/paste the descriptor snippets from this guide into the sample app to verify Sneak Peek colors, trailing bars, and badge sizes before integrating them into your product.
 
 ### Check if Atoll is Installed
 
@@ -117,24 +117,23 @@ Live activities appear in the closed Dynamic Island notch, similar to timer, mus
 Extension live activities support **sneak peek** – a temporary HUD that displays your title/subtitle when the activity appears or updates, preventing text from rendering behind the physical notch.
 
 - **Enable automatically** – Omit `sneakPeekConfig` (or set it to `.default`) to show title/subtitle in a brief HUD when your activity is presented. Text only appears via sneak peek, never under the notch hardware.
-- **Custom duration** – Use `.inline(duration: 3.5)` or `.standard(duration: 2.0)` to control how long the sneak peek displays (in seconds).
+- **Custom duration** – Provide `.standard(duration: 2.0)` to control how long the sneak peek displays (in seconds). Inline requests (`.inline(...)`) are ignored for third-party descriptors and automatically downgraded to `.standard`.
 - **Show on updates** – Pass `AtollSneakPeekConfig(enabled: true, showOnUpdate: true)` to trigger sneak peek every time you update the activity, not just on initial presentation.
 - **Disable sneak peek** – Set `sneakPeekConfig: .disabled` to prevent automatic HUD displays. Your activity will still render in the closed notch, but the title/subtitle will be hidden to avoid text under the hardware.
-- **Style override** – Use `.inline()` or `.standard()` to force a specific presentation style, overriding the user's Atoll preference. Leave `style: nil` to inherit the user's setting.
+- **Style override** – Use `.standard()` to force a specific presentation style, overriding the user's Atoll preference. Leave `style: nil` to inherit the user's setting. Inline overrides are downgraded to `.standard` for third-party activities.
 
 You can also override the HUD copy without changing the main descriptor text by setting `sneakPeekTitle` and `sneakPeekSubtitle`. These optional fields fall back to `title` / `subtitle` when omitted, allowing you to keep the notch copy short while presenting richer messaging inside the sneak peek.
 
 **Important:** Atoll no longer renders extension titles/subtitles inside the closed notch. Even if you disable sneak peek, the center column stays empty so nothing ever collides with the hardware cutout. Always provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the HUD has copy to display.
 
-Inline sneak peek mirrors the reminder/timer live activity layout: your `leadingContent` or `leadingIcon` occupies the left wing, the center seam remains blank for notch safety, and the trailing wing renders either your `trailingContent` or `progressIndicator` using the same ring/countdown sizing logic as the built-in reminder and timer views. Plan for concise glyphs or progress accents instead of center text whenever the user selects inline sneak peek.
+Inline sneak peek layouts are now reserved for Atoll’s built-in experiences. Third-party descriptors always render the standard below-notch HUD even if you request inline, ensuring consistent text placement across the ecosystem.
 
-### Inline Sneak Peek & Dismissals
+### Sneak Peek Behavior & Dismissals
 
-- **Inline sneak peek copy** – Provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the reminder-style HUD has text to display. The inline layout keeps the notch center empty, so this HUD is the only surface that shows copy.
+- **Sneak peek copy** – Provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the HUD always has text to display. Since inline mode is disabled for extensions, the standard HUD is the sole place where copy appears.
 - **Leading overrides** – Use `leadingContent` when you need to replace the default icon with another `AtollIconDescriptor` or a bundled Lottie animation. Text-based cases are rejected so the left wing always stays purely visual.
 - **Music coexistence** – Mark `allowsMusicCoexistence = true` for activities that can share space with music playback; Atoll will place your badge on the album art and shift the right wing automatically.
 - **User-driven dismissals** – Register `AtollClient.shared.onActivityDismiss` to learn when someone closes your activity using Atoll’s hover affordance. Shut down background work once this callback fires to avoid recreating the activity immediately.- **Smooth animations** – Activities appear with a subtle spring scale-in animation and fade-out on dismissal. Updates to the same activity ID animate smoothly without jarring transitions.
-Inline sneak peek now follows the reminder/timer live activity layout: the left wing shows your `leadingContent`, the center remains blank, and the right wing renders either your `trailingContent` or `progressIndicator`. Rings, digital countdowns, and bar indicators reuse the same sizing rules as reminder/timer, so the HUD stays balanced regardless of which wing content you choose.
 ### Creating a Live Activity
 
 ```swift
@@ -160,8 +159,8 @@ let activity = AtollLiveActivityDescriptor(
     accentColor: .orange,
     badgeIcon: .symbol(name: "flame.fill", color: .orange),
     allowsMusicCoexistence: true,
-    centerTextStyle: .inline,
-    sneakPeekConfig: .inline(duration: 3.0),  // Shows title/subtitle for 3 seconds
+    centerTextStyle: .inheritUser,
+    sneakPeekConfig: .standard(duration: 3.0),  // Shows title/subtitle for ~3 seconds
     sneakPeekTitle: "Workout timer",
     sneakPeekSubtitle: "Set 2 of 4"
 )
@@ -424,7 +423,7 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 ### Lock Screen Materials & Positioning
 
 - **Alignment-aware offsets** – `AtollWidgetPosition` accepts an alignment (`leading`, `center`, `trailing`) plus `verticalOffset` (±400 pt) and `horizontalOffset` (±600 pt). Use these fields instead of screen coordinates so widgets remain notch-safe across displays. Set `clampMode` to `.relaxed` or `.unconstrained` when you need to escape the default safe-area margins.
-- **Material presets** – `AtollWidgetMaterial` includes `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, and `.clear`. Pair liquid material with larger corner radii (≥20 pt) to mirror Atoll’s glass overlays and toggle `appearance.enableGlassHighlight` to request the effect even if you choose a different base material.
+- **Material presets** – `AtollWidgetMaterial` includes `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, and `.clear`. Pair liquid material with larger corner radii (≥20 pt) to mirror Atoll’s glass overlays, toggle `appearance.enableGlassHighlight` when you need macOS to add the highlight to other materials, and specify `appearance.liquidGlassVariant` to request a particular Apple liquid-glass variant whenever `material == .liquid`.
 - **Deterministic sizing** – Provide a custom `size` when you need dimensions outside the layout style defaults. The SDK clamps all widgets to 640×360 pt to avoid overlap.
 
 ### Appearance Overrides
@@ -433,6 +432,58 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 - **Content insets** – Supply `appearance.contentInsets` (top/leading/bottom/trailing) to override the default padding and keep text/gauges perfectly aligned with your design system.
 - **Borders & shadows** – Use `AtollWidgetBorderStyle` / `AtollWidgetShadowStyle` to specify custom borders and drop shadows. When `appearance.border` is omitted, Atoll falls back to a 1 pt white stroke (4% opacity).
 - **Glass accents** – Enable `appearance.enableGlassHighlight` to request the macOS Liquid Glass treatment wherever available. On older systems the view gracefully falls back to `.regularMaterial`.
+- **Liquid glass variants** – Set `appearance.liquidGlassVariant = AtollLiquidGlassVariant(value)` to match the user-facing “Custom Liquid Glass” slider (values clamp to 0–19). The host quietly falls back to standard liquid when the user disables custom variants or the requested value is unavailable.
+
+### Liquid Glass Variants
+
+Use `AtollLiquidGlassVariant` to request one of Apple’s undocumented liquid-glass kernels (0–19) so your widgets line up with the in-app customization sliders. Values outside the supported range clamp automatically, keeping your descriptors valid even if you reuse persisted settings across devices.
+
+```swift
+let widget = AtollLockScreenWidgetDescriptor(
+    id: "dashboard",
+    bundleIdentifier: Bundle.main.bundleIdentifier!,
+    layoutStyle: .card,
+    material: .liquid,
+    appearance: .init(
+        enableGlassHighlight: true,
+        liquidGlassVariant: AtollLiquidGlassVariant(12),
+        tintColor: .white,
+        tintOpacity: 0.08
+    ),
+    content: [...]
+)
+```
+
+- Only liquid materials honor the variant. When `material` switches away from `.liquid`, Atoll ignores the variant and keeps rendering the requested material.
+- Users can force “Standard Liquid Glass” inside Atoll’s settings. In that mode the host discards the variant but preserves your other appearance overrides, so no additional migration is required on your side.
+- Always provide a sane `cornerRadius` (≥20 pt recommended) so pronounced variants retain their curved reflections instead of clipping against sharp edges.
+
+### Lock Screen Liquid Glass Controls
+
+- **Stay in sync with Atoll** – `appearance.liquidGlassVariant` maps directly to Atoll’s “Custom Liquid Glass” slider, so requesting the same integer keeps third-party widgets visually aligned with the host music/timer panels. Values outside 0–19 clamp automatically.
+- **Respect user overrides** – When a user disables custom liquid glass or forces the “Standard” preset, Atoll silently ignores the variant while leaving your tint/border/shadow settings intact. No additional update call is needed.
+- **Material-aware** – Only set `appearance.liquidGlassVariant` when `material == .liquid`. The field is ignored for `.frosted`, `.solid`, `.semiTransparent`, and `.clear` surfaces.
+- **Highlight pairing** – Combine `appearance.enableGlassHighlight = true` with rounded corners (≥20 pt) and a low-opacity tint to mirror Atoll’s own lock screen look.
+- **Sample**
+
+```swift
+let variant = AtollLiquidGlassVariant(UserDefaults.standard.integer(forKey: "glassPreset"))
+let widget = AtollLockScreenWidgetDescriptor(
+    id: "charging-panel",
+    bundleIdentifier: Bundle.main.bundleIdentifier!,
+    layoutStyle: .card,
+    material: .liquid,
+    appearance: .init(
+        enableGlassHighlight: true,
+        liquidGlassVariant: variant,
+        tintColor: .white,
+        tintOpacity: 0.05
+    ),
+    content: [...]
+)
+```
+
+This setup lets extensions reuse the same numeric preset Atoll surfaces expose in Settings → Lock Screen → Custom Liquid Glass, keeping the lock screen cohesive for users who tweak materials per panel.
 
 ### Transparent Web Content
 
