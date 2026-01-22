@@ -14,11 +14,12 @@ AtollExtensionKit enables third-party applications to display custom live activi
 2. [Authorization](#authorization)
 3. [Live Activities](#live-activities)
 4. [Lock Screen Widgets](#lock-screen-widgets)
-5. [Priority System](#priority-system)
-6. [Best Practices](#best-practices)
-7. [Size Limits & Validation](#size-limits--validation)
-8. [Error Handling](#error-handling)
-9. [Examples](#examples)
+5. [Notch Experiences](#notch-experiences)
+6. [Priority System](#priority-system)
+7. [Best Practices](#best-practices)
+8. [Size Limits & Validation](#size-limits--validation)
+9. [Error Handling](#error-handling)
+10. [Examples](#examples)
 
 ---
 
@@ -39,6 +40,15 @@ dependencies: [
 ```swift
 import AtollExtensionKit
 ```
+
+### Run the Samples
+
+Two sample targets under [`Samples`](Samples) mirror the workflows described in this document:
+
+- `Samples/AtollXcodeSample` is a Swift Package CLI target. Run `swift run --package-path Samples/AtollXcodeSample` to print the SDK version, build a descriptor, and validate that `AtollClient.shared` is reachable—ideal for sanity-checking your toolchain before touching UI code.
+- `Samples/AtollXcodeSampleApp` is a SwiftUI macOS app. Open `AtollXcodeSampleApp.xcodeproj`, build, and run to see the descriptor validator and client ping buttons we use when testing Sneak Peek copy, trailing content, and badge sizing. Edit `Sources/App/ContentView.swift` to swap in your own descriptors (e.g., countdown text + progress indicator) and observe how Atoll renders them.
+
+Use these projects as living documentation: copy/paste the descriptor snippets from this guide into the sample app to verify Sneak Peek colors, trailing bars, and badge sizes before integrating them into your product.
 
 ### Check if Atoll is Installed
 
@@ -107,22 +117,23 @@ Live activities appear in the closed Dynamic Island notch, similar to timer, mus
 Extension live activities support **sneak peek** – a temporary HUD that displays your title/subtitle when the activity appears or updates, preventing text from rendering behind the physical notch.
 
 - **Enable automatically** – Omit `sneakPeekConfig` (or set it to `.default`) to show title/subtitle in a brief HUD when your activity is presented. Text only appears via sneak peek, never under the notch hardware.
-- **Custom duration** – Use `.inline(duration: 3.5)` or `.standard(duration: 2.0)` to control how long the sneak peek displays (in seconds).
+- **Custom duration** – Provide `.standard(duration: 2.0)` to control how long the sneak peek displays (in seconds). Inline requests (`.inline(...)`) are ignored for third-party descriptors and automatically downgraded to `.standard`.
 - **Show on updates** – Pass `AtollSneakPeekConfig(enabled: true, showOnUpdate: true)` to trigger sneak peek every time you update the activity, not just on initial presentation.
 - **Disable sneak peek** – Set `sneakPeekConfig: .disabled` to prevent automatic HUD displays. Your activity will still render in the closed notch, but the title/subtitle will be hidden to avoid text under the hardware.
-- **Style override** – Use `.inline()` or `.standard()` to force a specific presentation style, overriding the user's Atoll preference. Leave `style: nil` to inherit the user's setting.
+- **Style override** – Use `.standard()` to force a specific presentation style, overriding the user's Atoll preference. Leave `style: nil` to inherit the user's setting. Inline overrides are downgraded to `.standard` for third-party activities.
 
 You can also override the HUD copy without changing the main descriptor text by setting `sneakPeekTitle` and `sneakPeekSubtitle`. These optional fields fall back to `title` / `subtitle` when omitted, allowing you to keep the notch copy short while presenting richer messaging inside the sneak peek.
 
 **Important:** Atoll no longer renders extension titles/subtitles inside the closed notch. Even if you disable sneak peek, the center column stays empty so nothing ever collides with the hardware cutout. Always provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the HUD has copy to display.
 
-### Inline Sneak Peek & Dismissals
+Inline sneak peek layouts are now reserved for Atoll’s built-in experiences. Third-party descriptors always render the standard below-notch HUD even if you request inline, ensuring consistent text placement across the ecosystem.
 
-- **Inline sneak peek copy** – Provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the HUD has text to display. The notch center stays empty; all messaging flows through the sneak peek HUD.
+### Sneak Peek Behavior & Dismissals
+
+- **Sneak peek copy** – Provide `sneakPeekTitle` / `sneakPeekSubtitle` (falling back to `title` / `subtitle`) so the HUD always has text to display. Since inline mode is disabled for extensions, the standard HUD is the sole place where copy appears.
 - **Leading overrides** – Use `leadingContent` when you need to replace the default icon with another `AtollIconDescriptor` or a bundled Lottie animation. Text-based cases are rejected so the left wing always stays purely visual.
 - **Music coexistence** – Mark `allowsMusicCoexistence = true` for activities that can share space with music playback; Atoll will place your badge on the album art and shift the right wing automatically.
 - **User-driven dismissals** – Register `AtollClient.shared.onActivityDismiss` to learn when someone closes your activity using Atoll’s hover affordance. Shut down background work once this callback fires to avoid recreating the activity immediately.- **Smooth animations** – Activities appear with a subtle spring scale-in animation and fade-out on dismissal. Updates to the same activity ID animate smoothly without jarring transitions.
-When users select inline sneak peek, Atoll mirrors the music HUD layout: your `leadingContent` or `leadingIcon` fills the left wing, the supplied `sneakPeekTitle`/`sneakPeekSubtitle` scroll in the center, and the right wing shows an accent-tinted audio spectrum instead of trailing content. Plan your copy around that fixed layout.
 ### Creating a Live Activity
 
 ```swift
@@ -148,8 +159,8 @@ let activity = AtollLiveActivityDescriptor(
     accentColor: .orange,
     badgeIcon: .symbol(name: "flame.fill", color: .orange),
     allowsMusicCoexistence: true,
-    centerTextStyle: .inline,
-    sneakPeekConfig: .inline(duration: 3.0),  // Shows title/subtitle for 3 seconds
+    centerTextStyle: .inheritUser,
+    sneakPeekConfig: .standard(duration: 3.0),  // Shows title/subtitle for ~3 seconds
     sneakPeekTitle: "Workout timer",
     sneakPeekSubtitle: "Set 2 of 4"
 )
@@ -412,7 +423,7 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 ### Lock Screen Materials & Positioning
 
 - **Alignment-aware offsets** – `AtollWidgetPosition` accepts an alignment (`leading`, `center`, `trailing`) plus `verticalOffset` (±400 pt) and `horizontalOffset` (±600 pt). Use these fields instead of screen coordinates so widgets remain notch-safe across displays. Set `clampMode` to `.relaxed` or `.unconstrained` when you need to escape the default safe-area margins.
-- **Material presets** – `AtollWidgetMaterial` includes `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, and `.clear`. Pair liquid material with larger corner radii (≥20 pt) to mirror Atoll’s glass overlays and toggle `appearance.enableGlassHighlight` to request the effect even if you choose a different base material.
+- **Material presets** – `AtollWidgetMaterial` includes `.frosted`, `.liquid`, `.solid`, `.semiTransparent`, and `.clear`. Pair liquid material with larger corner radii (≥20 pt) to mirror Atoll’s glass overlays, toggle `appearance.enableGlassHighlight` when you need macOS to add the highlight to other materials, and specify `appearance.liquidGlassVariant` to request a particular Apple liquid-glass variant whenever `material == .liquid`.
 - **Deterministic sizing** – Provide a custom `size` when you need dimensions outside the layout style defaults. The SDK clamps all widgets to 640×360 pt to avoid overlap.
 
 ### Appearance Overrides
@@ -421,6 +432,58 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 - **Content insets** – Supply `appearance.contentInsets` (top/leading/bottom/trailing) to override the default padding and keep text/gauges perfectly aligned with your design system.
 - **Borders & shadows** – Use `AtollWidgetBorderStyle` / `AtollWidgetShadowStyle` to specify custom borders and drop shadows. When `appearance.border` is omitted, Atoll falls back to a 1 pt white stroke (4% opacity).
 - **Glass accents** – Enable `appearance.enableGlassHighlight` to request the macOS Liquid Glass treatment wherever available. On older systems the view gracefully falls back to `.regularMaterial`.
+- **Liquid glass variants** – Set `appearance.liquidGlassVariant = AtollLiquidGlassVariant(value)` to match the user-facing “Custom Liquid Glass” slider (values clamp to 0–19). The host quietly falls back to standard liquid when the user disables custom variants or the requested value is unavailable.
+
+### Liquid Glass Variants
+
+Use `AtollLiquidGlassVariant` to request one of Apple’s undocumented liquid-glass kernels (0–19) so your widgets line up with the in-app customization sliders. Values outside the supported range clamp automatically, keeping your descriptors valid even if you reuse persisted settings across devices.
+
+```swift
+let widget = AtollLockScreenWidgetDescriptor(
+    id: "dashboard",
+    bundleIdentifier: Bundle.main.bundleIdentifier!,
+    layoutStyle: .card,
+    material: .liquid,
+    appearance: .init(
+        enableGlassHighlight: true,
+        liquidGlassVariant: AtollLiquidGlassVariant(12),
+        tintColor: .white,
+        tintOpacity: 0.08
+    ),
+    content: [...]
+)
+```
+
+- Only liquid materials honor the variant. When `material` switches away from `.liquid`, Atoll ignores the variant and keeps rendering the requested material.
+- Users can force “Standard Liquid Glass” inside Atoll’s settings. In that mode the host discards the variant but preserves your other appearance overrides, so no additional migration is required on your side.
+- Always provide a sane `cornerRadius` (≥20 pt recommended) so pronounced variants retain their curved reflections instead of clipping against sharp edges.
+
+### Lock Screen Liquid Glass Controls
+
+- **Stay in sync with Atoll** – `appearance.liquidGlassVariant` maps directly to Atoll’s “Custom Liquid Glass” slider, so requesting the same integer keeps third-party widgets visually aligned with the host music/timer panels. Values outside 0–19 clamp automatically.
+- **Respect user overrides** – When a user disables custom liquid glass or forces the “Standard” preset, Atoll silently ignores the variant while leaving your tint/border/shadow settings intact. No additional update call is needed.
+- **Material-aware** – Only set `appearance.liquidGlassVariant` when `material == .liquid`. The field is ignored for `.frosted`, `.solid`, `.semiTransparent`, and `.clear` surfaces.
+- **Highlight pairing** – Combine `appearance.enableGlassHighlight = true` with rounded corners (≥20 pt) and a low-opacity tint to mirror Atoll’s own lock screen look.
+- **Sample**
+
+```swift
+let variant = AtollLiquidGlassVariant(UserDefaults.standard.integer(forKey: "glassPreset"))
+let widget = AtollLockScreenWidgetDescriptor(
+    id: "charging-panel",
+    bundleIdentifier: Bundle.main.bundleIdentifier!,
+    layoutStyle: .card,
+    material: .liquid,
+    appearance: .init(
+        enableGlassHighlight: true,
+        liquidGlassVariant: variant,
+        tintColor: .white,
+        tintOpacity: 0.05
+    ),
+    content: [...]
+)
+```
+
+This setup lets extensions reuse the same numeric preset Atoll surfaces expose in Settings → Lock Screen → Custom Liquid Glass, keeping the lock screen cohesive for users who tweak materials per panel.
 
 ### Transparent Web Content
 
@@ -444,6 +507,140 @@ try await AtollClient.shared.presentLockScreenWidget(widget)
 - `.solid` – opaque background using the widget’s accent color
 - `.semiTransparent` – subtle tint with reduced opacity
 - `.clear` – fully transparent background, ideal for minimalist text/icon layouts
+
+---
+
+## Notch Experiences
+
+`AtollNotchExperienceDescriptor` lets you surface rich, structured content directly inside Atoll’s Dynamic Island. A descriptor can render:
+
+- A **standard notch tab** that sits alongside built-in tabs (Timers, Shelf, etc.)
+- An optional **minimalistic override** that replaces the compact music UI while the user’s minimalistic mode is active
+
+Both surfaces share the same declarative building blocks as lock screen widgets, so SDK clients never send executable UI code—only structured content sections, optional icons, and sandboxed web payloads.
+
+### Overview
+
+- Requires the user to enable **Extensions → Allow extension notch experiences** inside Atoll Settings. Users can further toggle tabs, minimalistic overrides, and interactive web views individually; always provide a fallback path in your app.
+- Capacity is limited (default: 2 simultaneous experiences). Submit only when there is meaningful information to show and dismiss promptly when stale.
+- Tabs and minimalistic overrides are independent. You can ship one, the other, or both in the same descriptor.
+- Content is rendered by Atoll; titles and copy never sit under the physical notch. Sneak Peek HUD handles headline text when tabs appear.
+
+### Workflow
+
+1. **Authorize** – Request authorization just like live activities. Notch experiences honor the same permission scope.
+2. **Assemble the descriptor** – Populate the required metadata plus either `tab`, `minimalistic`, or both configurations.
+3. **Validate locally** – Call `descriptor.isValid` or `ExtensionDescriptorValidator.validate(_:)` in your tests to catch layout/length issues before hitting the service.
+4. **Present** – `try await AtollClient.shared.presentNotchExperience(descriptor)` queues the experience. Use a stable `id` per logical surface so updates replace the existing tab instead of creating duplicates.
+5. **Update** – Re-send the descriptor with new content via `updateNotchExperience(_:)`. Prefer incremental updates over dismiss/re-present to keep animations smooth.
+6. **Dismiss** – Call `dismissNotchExperience(experienceID:)` when the session ends, or respond to `onNotchExperienceDismiss` callbacks if the user revokes it from Atoll.
+7. **Fallbacks** – When the user disables tabs, minimalistic overrides, or interactive web content, degrade gracefully inside your own UI instead of re-presenting.
+
+### Descriptor Structure
+
+Top-level fields mirror other Atoll descriptors:
+
+- `id` and `bundleIdentifier` uniquely identify your experience.
+- `priority` determines ordering relative to other extension tabs (same enum as live activities).
+- `accentColor` tints dividers, highlights, and fallback UI elements.
+- `metadata` carries up to 32 key/value pairs for diagnostics (never rendered to the user).
+- `tab` / `minimalistic` hold their respective configurations. At least one must be present.
+
+### Tab Experiences (`TabConfiguration`)
+
+- **Presentation** – Tabs appear in Atoll’s Tab bar when `Enable extension notch tabs` is on. Users tap the tab to show your content; Atoll hides it automatically when the descriptor disappears.
+- **Layout** – Provide up to 6 `AtollNotchContentSection` entries. Each section can be a `stack`, `columns`, or `metrics` layout and accepts the same `AtollWidgetContentElement` payloads as lock screen widgets (text, icons, graphs, gauges, progress, spacers, dividers, web views).
+- **Sizing** – `preferredHeight` suggests how tall the tab should be (clamped to 160–420 pt). Atoll ensures the size stays within the notch frame.
+- **Branding** – Use `iconSymbolName`, `badgeIcon`, and `appearance` to align with your app’s look. Keep labels short for accessibility.
+- **Footnotes** – Optional footnote text (≤140 characters) appears beneath your content stack for legal copy or instructions.
+- **Interactive web content** – Supply `webContent` plus `allowWebInteraction = true` when your tab needs a sandboxed WKWebView with keyboard/mouse input. Atoll rejects descriptors that contain web content if the user disabled **Allow interactive web content**.
+
+### Minimalistic Replacements (`MinimalisticConfiguration`)
+
+- **Use case** – Override the compact minimalistic music layout with extension-driven content while the user’s minimalistic mode is active.
+- **Copy** – Optional `headline` (≤80 chars) and `subtitle` (≤120 chars) sit above your sections, mirroring the music title/subtitle area without touching the physical notch.
+- **Sections** – Provide up to 3 sections with the same content elements as tabs. Minimalistic sections should remain lightweight to avoid overcrowding.
+- **Web content** – Optional `webContent` renders a sandboxed view sized automatically by Atoll. It respects the same global interactive web toggle as tabs.
+- **Layout hints** – `layout` communicates the general form factor (`.stack`, `.metrics`, `.custom`) so Atoll can adjust padding. Use `hidesMusicControls` if you need the music buttons removed entirely.
+
+### Content Sections & Elements
+
+- `AtollNotchContentSection` limits you to 6 elements per section. Each element is one of the existing widget building blocks (`.text`, `.icon`, `.progress`, `.graph`, `.gauge`, `.webView`, `.divider`, `.spacer`).
+- Titles (≤80 chars) and subtitles (≤160 chars) are optional per section. Use them sparingly to keep the notch readable.
+- Because these types are `Codable`, you can reuse existing widget-building utilities when assembling your notch descriptors.
+
+### Interactive Web Content Policy
+
+- HTML payloads share the lock screen widget limits (20 KB max, inline assets only).
+- Navigation remains limited to `about:` / `data:` unless you explicitly allow localhost inside `AtollWidgetWebContentDescriptor` (useful for pointing at a dev server during testing).
+- Set `allowWebInteraction = true` only when you genuinely need keyboard or mouse input. Tabs default to read-only web views.
+- Atoll rejects descriptors that include web content when the user disables **Allow interactive web content** or when system security policies block the payload. Always render equivalent data using native elements whenever possible.
+
+### Example
+
+```swift
+let descriptor = AtollNotchExperienceDescriptor(
+    id: "finance-dashboard",
+    priority: .high,
+    accentColor: .init(red: 0.18, green: 0.65, blue: 0.94),
+    tab: .init(
+        title: "Finance",
+        iconSymbolName: "chart.pie.fill",
+        preferredHeight: 260,
+        sections: [
+            .init(
+                id: "positions",
+                title: "Positions",
+                layout: .columns,
+                elements: [
+                    .text("AAPL", font: .system(size: 16, weight: .semibold), color: .white),
+                    .text("$182.44", font: .monospacedDigit(size: 16, weight: .medium), color: .green),
+                    .gauge(value: 0.72, minValue: 0, maxValue: 1, style: .circular, color: .green),
+                    .divider(color: .white, thickness: 1)
+                ]
+            )
+        ],
+        webContent: .init(
+            html: "<canvas id=\"spark\"></canvas><script>renderSpark()</script>",
+            preferredHeight: 120,
+            allowLocalhostRequests: false,
+            isTransparent: true
+        ),
+        allowWebInteraction: false
+    ),
+    minimalistic: .init(
+        headline: "Portfolio",
+        subtitle: "Daily change +$1,820",
+        sections: [
+            .init(
+                id: "overview",
+                layout: .metrics,
+                elements: [
+                    .text("Top mover", font: .system(size: 13, weight: .regular), color: .white),
+                    .text("+3.4%", font: .monospacedDigit(size: 15, weight: .semibold), color: .green)
+                ]
+            )
+        ],
+        hidesMusicControls: true
+    )
+)
+
+try await AtollClient.shared.presentNotchExperience(descriptor)
+```
+
+### API Surface
+
+```swift
+try await AtollClient.shared.presentNotchExperience(descriptor)
+try await AtollClient.shared.updateNotchExperience(descriptor)
+try await AtollClient.shared.dismissNotchExperience(experienceID: descriptor.id)
+
+AtollClient.shared.onNotchExperienceDismiss(experienceID: descriptor.id) {
+    // Cleanup work / update UI
+}
+```
+
+Use dismissal callbacks to stop background work when the user closes your tab from Atoll. If you re-present immediately, Atoll treats it as a new submission and re-applies validation/capacity checks.
 
 ---
 
@@ -519,6 +716,10 @@ do {
 - Provide in-app settings to disable live activities
 - Leave `centerTextStyle` at `.inheritUser` whenever possible so the view respects the user's Sneak Peek preference; only force `.inline` or `.standard` when your layout requires a specific treatment.
 
+### 8. **Degrade when notch surfaces are disabled**
+- Users can toggle notch experiences, extension tabs, minimalistic overrides, and interactive web content independently inside Atoll. Detect `AtollExtensionKitError.invalidDescriptor` / `AtollExtensionKitError.notAuthorized` responses and keep rendering equivalent information inside your own UI instead of looping on retries.
+- Avoid presenting placeholder tabs just to reserve capacity. Submit descriptors only when you have live data to show and dismiss them when finished.
+
 ---
 
 ## Size Limits & Validation
@@ -545,6 +746,22 @@ do {
 | Image data | 5 MB | Per icon |
 | Graph data points | 100 max | Performance |
 | Web content HTML | 20 KB | `.webView` payload |
+
+### Notch Experiences
+
+| Property | Limit | Notes |
+|----------|-------|-------|
+| Concurrent experiences | 2 global (default) | Host-enforced capacity |
+| Tab sections | 6 max | Each section must be valid |
+| Section elements | 6 max | Shares rules with widget elements |
+| Tab preferred height | 160–420 pt | Clamped by host |
+| Tab footnote | 140 characters | Optional |
+| Minimalistic sections | 3 max | Keep content concise |
+| Minimalistic headline | 80 characters | Optional |
+| Minimalistic subtitle | 120 characters | Optional |
+| Section title | 80 characters | Optional |
+| Section subtitle | 160 characters | Optional |
+| Web content HTML | 20 KB | Same limits as widgets |
 
 ### Validation Errors
 
