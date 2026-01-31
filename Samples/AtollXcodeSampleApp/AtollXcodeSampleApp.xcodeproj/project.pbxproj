@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -15,6 +15,7 @@
 /* Begin PBXFileReference section */
 		1A29999564402B75F3EC36F9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		3F06647A06A377B361366C7F /* AtollXcodeSampleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtollXcodeSampleApp.swift; sourceTree = "<group>"; };
+		7E2F43162F2A6A710027E974 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E592309179B7075FDB96B520 /* AtollXcodeSampleApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AtollXcodeSampleApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F9ECA0D379D56C695A3F4CFA /* AtollExtensionKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AtollExtensionKit; path = ../..; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -60,6 +61,7 @@
 		E8B8A18D4F20E04CCD2E21EE = {
 			isa = PBXGroup;
 			children = (
+				7E2F43162F2A6A710027E974 /* Assets.xcassets */,
 				560BC12B400B4D6519E8E323 /* App */,
 				7439B06036D541D8FE9787F3 /* Packages */,
 				CFA96E97731253A5937267F3 /* Products */,
@@ -115,7 +117,6 @@
 			packageReferences = (
 				2D258EEAD03A7BC6E3168C83 /* XCLocalSwiftPackageReference "../.." */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -141,6 +142,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = Supporting/Info.plist;
@@ -276,6 +278,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = Supporting/Info.plist;

@@ -2229,7 +2229,7 @@ struct ContentView: View {
             id: widgets.steps,
             bundleIdentifier: Bundle.main.bundleIdentifier!,
             layoutStyle: .card,
-            position: .init(alignment: .trailing, verticalOffset: -60, horizontalOffset: -60),
+            position: .init(alignment: .trailing, verticalOffset: 40, horizontalOffset: -60),
             size: CGSize(width: 320, height: 185),
             material: useLiquidForStepWidget ? .liquid : .frosted,
             cornerRadius: 26,
@@ -2619,12 +2619,37 @@ struct ContentView: View {
               return d;
             }
 
-            // simple walking pose frames (3x3)
+            // ✅ Nothing Phone-ish dot person optimized for the 5-row height
+            // Adjusted to 5x5 so it fits perfectly without being cut off.
+            // Glyph key: 1 = ON, 0 = OFF
+            const GLYPH_W = 5;
+            const GLYPH_H = 5;
+
             const frames = [
-              [1,1,1,  0,1,0,  1,0,1],
-              [1,1,1,  0,1,0,  0,1,0]
+              // Frame A (Wide Stride)
+              [
+                0,0,1,0,0, // Head
+                0,1,1,1,0, // Arms/Torso
+                0,0,1,0,0, // Torso
+                0,1,0,1,0, // Legs Open
+                1,0,0,0,1  // Feet
+              ],
+
+              // Frame B (Narrow Stride / Passing)
+              [
+                0,0,1,0,0, // Head
+                0,1,1,1,0, // Arms/Torso
+                0,0,1,0,0, // Torso
+                0,0,1,0,0, // Legs Straight
+                0,1,0,1,0  // Feet Close
+              ]
             ];
             let frameIndex = 0;
+
+            function glyphOn(frame, gx, gy) {
+              if (gx < 0 || gx >= GLYPH_W || gy < 0 || gy >= GLYPH_H) return false;
+              return frame[gy * GLYPH_W + gx] === 1;
+            }
 
             function render() {
               matrix.innerHTML = "";
@@ -2641,17 +2666,20 @@ struct ContentView: View {
                   // filled progress on the path
                   const isFilled = isPathRow && c >= startX && c <= walkerX;
 
-                  // walker region (3x3 block) at left side
+                  // ✅ walker region (5x5 area)
                   const walkerBaseCol = 0;
-                  const walkerBaseRow = 1;
+                  const walkerBaseRow = 0;
                   const inWalkerBlock =
-                    c >= walkerBaseCol && c < walkerBaseCol + 3 &&
-                    r >= walkerBaseRow && r < walkerBaseRow + 3;
+                    c >= walkerBaseCol && c < walkerBaseCol + GLYPH_W &&
+                    r >= walkerBaseRow && r < walkerBaseRow + ROWS; 
 
                   if (inWalkerBlock) {
-                    // render 3x3 walker animation
-                    const idx = (r - walkerBaseRow) * 3 + (c - walkerBaseCol);
-                    const on = frames[frameIndex][idx] === 1;
+                    const gx = c - walkerBaseCol;
+                    const gy = r - walkerBaseRow;
+
+                    // Map directly to our 5x5 sprite
+                    const on = glyphOn(frames[frameIndex], gx, gy);
+
                     matrix.appendChild(on ? dot("dot fill") : dot("dot"));
                     continue;
                   }
@@ -2670,7 +2698,7 @@ struct ContentView: View {
             setInterval(() => {
               frameIndex = (frameIndex + 1) % frames.length;
               render();
-            }, 460);
+            }, 250); // Slightly slower for a more natural walking pace
 
             render();
           </script>
