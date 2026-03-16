@@ -276,6 +276,97 @@ public enum AtollWidgetContentElement: Codable, Sendable, Hashable {
             return true
         }
     }
+
+    // MARK: - Custom Codable (supports default values for omitted fields)
+
+    private enum CodingKeys: String, CodingKey {
+        case text, icon, progress, graph, gauge, spacer, divider, webView
+    }
+
+    private enum TextCodingKeys: String, CodingKey {
+        case _0, font, color, alignment
+    }
+
+    private enum IconCodingKeys: String, CodingKey {
+        case _0, tint
+    }
+
+    private enum ProgressCodingKeys: String, CodingKey {
+        case _0, value, color
+    }
+
+    private enum GraphCodingKeys: String, CodingKey {
+        case data, color, size
+    }
+
+    private enum GaugeCodingKeys: String, CodingKey {
+        case value, minValue, maxValue, style, color
+    }
+
+    private enum SpacerCodingKeys: String, CodingKey {
+        case height
+    }
+
+    private enum DividerCodingKeys: String, CodingKey {
+        case color, thickness
+    }
+
+    private enum WebViewCodingKeys: String, CodingKey {
+        case _0
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        if container.contains(.text) {
+            let nested = try container.nestedContainer(keyedBy: TextCodingKeys.self, forKey: .text)
+            let text = try nested.decode(String.self, forKey: ._0)
+            let font = try nested.decode(AtollFontDescriptor.self, forKey: .font)
+            let color = try nested.decodeIfPresent(AtollColorDescriptor.self, forKey: .color)
+            let alignment = try nested.decodeIfPresent(TextAlignment.self, forKey: .alignment) ?? .leading
+            self = .text(text, font: font, color: color, alignment: alignment)
+        } else if container.contains(.icon) {
+            let nested = try container.nestedContainer(keyedBy: IconCodingKeys.self, forKey: .icon)
+            let descriptor = try nested.decode(AtollIconDescriptor.self, forKey: ._0)
+            let tint = try nested.decodeIfPresent(AtollColorDescriptor.self, forKey: .tint)
+            self = .icon(descriptor, tint: tint)
+        } else if container.contains(.progress) {
+            let nested = try container.nestedContainer(keyedBy: ProgressCodingKeys.self, forKey: .progress)
+            let indicator = try nested.decode(AtollProgressIndicator.self, forKey: ._0)
+            let value = try nested.decode(Double.self, forKey: .value)
+            let color = try nested.decodeIfPresent(AtollColorDescriptor.self, forKey: .color)
+            self = .progress(indicator, value: value, color: color)
+        } else if container.contains(.graph) {
+            let nested = try container.nestedContainer(keyedBy: GraphCodingKeys.self, forKey: .graph)
+            let data = try nested.decode([Double].self, forKey: .data)
+            let color = try nested.decode(AtollColorDescriptor.self, forKey: .color)
+            let size = try nested.decode(CGSize.self, forKey: .size)
+            self = .graph(data: data, color: color, size: size)
+        } else if container.contains(.gauge) {
+            let nested = try container.nestedContainer(keyedBy: GaugeCodingKeys.self, forKey: .gauge)
+            let value = try nested.decode(Double.self, forKey: .value)
+            let minValue = try nested.decodeIfPresent(Double.self, forKey: .minValue) ?? 0
+            let maxValue = try nested.decodeIfPresent(Double.self, forKey: .maxValue) ?? 1
+            let style = try nested.decodeIfPresent(GaugeStyle.self, forKey: .style) ?? .circular
+            let color = try nested.decodeIfPresent(AtollColorDescriptor.self, forKey: .color)
+            self = .gauge(value: value, minValue: minValue, maxValue: maxValue, style: style, color: color)
+        } else if container.contains(.spacer) {
+            let nested = try container.nestedContainer(keyedBy: SpacerCodingKeys.self, forKey: .spacer)
+            let height = try nested.decode(CGFloat.self, forKey: .height)
+            self = .spacer(height: height)
+        } else if container.contains(.divider) {
+            let nested = try container.nestedContainer(keyedBy: DividerCodingKeys.self, forKey: .divider)
+            let color = try nested.decodeIfPresent(AtollColorDescriptor.self, forKey: .color) ?? .gray
+            let thickness = try nested.decodeIfPresent(CGFloat.self, forKey: .thickness) ?? 1
+            self = .divider(color: color, thickness: thickness)
+        } else if container.contains(.webView) {
+            let nested = try container.nestedContainer(keyedBy: WebViewCodingKeys.self, forKey: .webView)
+            let descriptor = try nested.decode(AtollWidgetWebContentDescriptor.self, forKey: ._0)
+            self = .webView(descriptor)
+        } else {
+            throw DecodingError.dataCorrupted(.init(codingPath: container.codingPath, debugDescription: "Unknown AtollWidgetContentElement case"))
+        }
+    }
 }
 
 // MARK: - Appearance Controls

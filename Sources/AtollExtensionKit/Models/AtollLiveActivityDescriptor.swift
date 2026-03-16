@@ -296,6 +296,78 @@ public enum AtollTrailingContent: Codable, Sendable, Hashable {
             return true
         }
     }
+
+    // MARK: - Custom Codable (supports default values for omitted fields)
+
+    private enum CodingKeys: String, CodingKey {
+        case text, marquee, countdownText, icon, spectrum, animation, none
+    }
+
+    private enum TextCodingKeys: String, CodingKey {
+        case _0, font, color
+    }
+
+    private enum MarqueeCodingKeys: String, CodingKey {
+        case _0, font, minDuration, color
+    }
+
+    private enum CountdownTextCodingKeys: String, CodingKey {
+        case targetDate, font, color
+    }
+
+    private enum IconCodingKeys: String, CodingKey {
+        case _0
+    }
+
+    private enum SpectrumCodingKeys: String, CodingKey {
+        case color
+    }
+
+    private enum AnimationCodingKeys: String, CodingKey {
+        case data, size
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        if container.contains(.text) {
+            let nested = try container.nestedContainer(keyedBy: TextCodingKeys.self, forKey: .text)
+            let text = try nested.decode(String.self, forKey: ._0)
+            let font = try nested.decodeIfPresent(AtollFontDescriptor.self, forKey: .font) ?? .system(size: 12, weight: .medium)
+            let color = try nested.decodeIfPresent(AtollColorDescriptor.self, forKey: .color)
+            self = .text(text, font: font, color: color)
+        } else if container.contains(.marquee) {
+            let nested = try container.nestedContainer(keyedBy: MarqueeCodingKeys.self, forKey: .marquee)
+            let text = try nested.decode(String.self, forKey: ._0)
+            let font = try nested.decodeIfPresent(AtollFontDescriptor.self, forKey: .font) ?? .system(size: 12, weight: .medium)
+            let minDuration = try nested.decodeIfPresent(Double.self, forKey: .minDuration) ?? 0.4
+            let color = try nested.decodeIfPresent(AtollColorDescriptor.self, forKey: .color)
+            self = .marquee(text, font: font, minDuration: minDuration, color: color)
+        } else if container.contains(.countdownText) {
+            let nested = try container.nestedContainer(keyedBy: CountdownTextCodingKeys.self, forKey: .countdownText)
+            let targetDate = try nested.decode(Date.self, forKey: .targetDate)
+            let font = try nested.decodeIfPresent(AtollFontDescriptor.self, forKey: .font) ?? .monospacedDigit(size: 13, weight: .semibold)
+            let color = try nested.decodeIfPresent(AtollColorDescriptor.self, forKey: .color)
+            self = .countdownText(targetDate: targetDate, font: font, color: color)
+        } else if container.contains(.icon) {
+            let nested = try container.nestedContainer(keyedBy: IconCodingKeys.self, forKey: .icon)
+            let descriptor = try nested.decode(AtollIconDescriptor.self, forKey: ._0)
+            self = .icon(descriptor)
+        } else if container.contains(.spectrum) {
+            let nested = try container.nestedContainer(keyedBy: SpectrumCodingKeys.self, forKey: .spectrum)
+            let color = try nested.decodeIfPresent(AtollColorDescriptor.self, forKey: .color) ?? .accent
+            self = .spectrum(color: color)
+        } else if container.contains(.animation) {
+            let nested = try container.nestedContainer(keyedBy: AnimationCodingKeys.self, forKey: .animation)
+            let data = try nested.decode(Data.self, forKey: .data)
+            let size = try nested.decodeIfPresent(CGSize.self, forKey: .size) ?? CGSize(width: 50, height: 30)
+            self = .animation(data: data, size: size)
+        } else if container.contains(.none) {
+            self = .none
+        } else {
+            throw DecodingError.dataCorrupted(.init(codingPath: container.codingPath, debugDescription: "Unknown AtollTrailingContent case"))
+        }
+    }
 }
 
 /// Configuration for sneak peek presentation of live activity content.
