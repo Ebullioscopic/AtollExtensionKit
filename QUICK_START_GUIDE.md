@@ -13,7 +13,7 @@
 1. **In your app's Xcode project:**
    - File → Add Package Dependencies...
    - Click "Add Local..."
-   - Navigate to `/Users/hariharan/HobbyProjects/AtollExtensionKit`
+   - Navigate to your local `AtollExtensionKit` folder
    - Click "Add Package"
    - Select your app target and click "Add Package"
 
@@ -27,7 +27,7 @@ If you're building a command-line tool or Swift package:
 
 ```swift
 dependencies: [
-    .package(path: "/Users/hariharan/HobbyProjects/AtollExtensionKit")
+    .package(path: "../AtollExtensionKit")
 ],
 targets: [
     .target(
@@ -47,7 +47,7 @@ targets: [
 5. Make sure you selected your app target when adding the package
 
 **Package won't resolve:**
-- Ensure `/Users/hariharan/HobbyProjects/AtollExtensionKit` exists
+- Ensure your local `AtollExtensionKit` folder exists
 - Check that `Package.swift` exists in that directory
 - Try removing and re-adding the package dependency
 
