@@ -489,6 +489,7 @@ This setup lets extensions reuse the same numeric preset Atoll surfaces expose i
 
 - **Sandboxed WKWebView** – `.webView` renders inline HTML/CSS/JS (max 20 KB) inside a mouse-disabled WKWebView so you can layer custom shaders, charts, or canvas effects over Atoll’s background.
 - **Network policy** – Navigation is limited to `about:` / `data:` URLs unless you set `allowLocalhostRequests = true`, which whitelists `http://localhost` and `http://127.0.0.1` for dev servers. All other hosts are blocked for safety.
+- **Remote policy** – Set `allowRemoteRequests = true` when your payload needs remote libraries (for example CDN-hosted scripts/styles). Keep this disabled unless required.
 - **Visual control** – `isTransparent` clears the view’s background so only your markup appears. Provide `backgroundColor` when you need an explicit fill, and use `maximumContentWidth` to clamp how wide the surface can stretch.
 - **Sizing** – `preferredHeight` drives the web view’s height (clamped to 40–420 pt). Combine it with layout `size` + padding to keep the chrome balanced.
 

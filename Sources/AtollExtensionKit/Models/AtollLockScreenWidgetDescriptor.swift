@@ -465,6 +465,7 @@ public struct AtollWidgetWebContentDescriptor: Codable, Sendable, Hashable {
     public let preferredHeight: CGFloat
     public let isTransparent: Bool
     public let allowLocalhostRequests: Bool
+    public let allowRemoteRequests: Bool
     public let backgroundColor: AtollColorDescriptor?
     public let maximumContentWidth: CGFloat?
 
@@ -473,6 +474,7 @@ public struct AtollWidgetWebContentDescriptor: Codable, Sendable, Hashable {
         preferredHeight: CGFloat = 140,
         isTransparent: Bool = true,
         allowLocalhostRequests: Bool = false,
+        allowRemoteRequests: Bool = false,
         backgroundColor: AtollColorDescriptor? = nil,
         maximumContentWidth: CGFloat? = nil
     ) {
@@ -480,6 +482,7 @@ public struct AtollWidgetWebContentDescriptor: Codable, Sendable, Hashable {
         self.preferredHeight = min(max(preferredHeight, 40), 420)
         self.isTransparent = isTransparent
         self.allowLocalhostRequests = allowLocalhostRequests
+        self.allowRemoteRequests = allowRemoteRequests
         self.backgroundColor = backgroundColor
         if let width = maximumContentWidth {
             self.maximumContentWidth = max(40, min(width, 640))
