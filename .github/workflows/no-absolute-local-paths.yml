@@ -1,0 +1,23 @@
+name: Reject Absolute Local Paths
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject machine-specific local paths
+        run: |
+          set -euo pipefail
+          if rg -n 'file:///Users/|/Users/.+HobbyProjects' \
+            Package.swift \
+            Samples \
+            QUICK_START_GUIDE.md; then
+            echo "Found absolute local machine paths. Use relative paths or repo URLs instead."
+            exit 1
+          fi
