@@ -2,7 +2,7 @@
 
 [![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
 [![Platform](https://img.shields.io/badge/Platform-macOS%2013.0+-lightgrey.svg)](https://www.apple.com/macos/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-LGPL-blue.svg)](LICENSE)
 
 **AtollExtensionKit** is a Swift SDK that allows third-party macOS applications to display custom live activities and lock screen widgets inside [Atoll](https://github.com/Ebullioscopic/Atoll).
 
@@ -468,7 +468,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-AtollExtensionKit is available under the **MIT License**. See [LICENSE](LICENSE) for details.
+AtollExtensionKit is available under the **LGPL v3 License**. See [LICENSE](LICENSE) for details.
 
 ---
 
