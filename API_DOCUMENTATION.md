@@ -553,6 +553,7 @@ Top-level fields mirror other Atoll descriptors:
 - **Layout** – Provide up to 6 `AtollNotchContentSection` entries. Each section can be a `stack`, `columns`, or `metrics` layout and accepts the same `AtollWidgetContentElement` payloads as lock screen widgets (text, icons, graphs, gauges, progress, spacers, dividers, web views).
 - **Sizing** – `preferredHeight` suggests how tall the tab should be (clamped to 160–420 pt). Atoll ensures the size stays within the notch frame.
 - **Branding** – Use `iconSymbolName`, `badgeIcon`, and `appearance` to align with your app’s look. Keep labels short for accessibility.
+- **Content layout** – Optionally set `contentLayout: .contentOnly` to request no native title header or outer content insets in supporting hosts. The tab selector keeps its title and icon. Omit the field or use `.standard` for existing layout. Older hosts ignore the additive field and keep their header; extensions must remain usable inside that container. This option does not grant web interaction or control scroll gestures.
 - **Footnotes** – Optional footnote text (≤140 characters) appears beneath your content stack for legal copy or instructions.
 - **Interactive web content** – Supply `webContent` plus `allowWebInteraction = true` when your tab needs a sandboxed WKWebView with keyboard/mouse input. Atoll rejects descriptors that contain web content if the user disabled **Allow interactive web content**.
 
